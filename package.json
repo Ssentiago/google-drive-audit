@@ -1,0 +1,49 @@
+{
+  "name": "google-drive-audit",
+  "private": true,
+  "version": "3.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build:mac": "bun run tauri build --target universal-apple-darwin",
+    "build:windows": "bun run tauri build --target x86_64-pc-windows-msvc\n"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@iarna/toml": "^2.2.5",
+    "@inquirer/prompts": "^8.0.2",
+    "@mui/icons-material": "^7.3.5",
+    "@mui/material": "^7.3.5",
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-shell": "^2.3.3",
+    "@types/react-virtualized": "^9.22.3",
+    "chalk": "^5.6.2",
+    "date-fns": "^4.1.0",
+    "find-up-simple": "^1.0.1",
+    "json": "^11.0.0",
+    "parse-json": "^8.3.0",
+    "prettier": "^3.7.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-icons": "^5.5.0",
+    "react-virtualized": "^9.22.6",
+    "styled-components": "^6.1.19",
+    "tailwind-merge": "^3.4.0",
+    "toml": "^3.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/styled-components": "^5.1.35",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}
