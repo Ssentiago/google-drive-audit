@@ -1,17 +1,17 @@
 [package]
 name = "google-drive-audit"
-version = "0.0.0"
+version = "3.0.0"
 description = "A tool for Google Drive Audit"
-authors = ["Sentiago"]
+authors = [ "Sentiago" ]
 edition = "2021"
 
 [lib]
 name = "tauri_app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = [ "staticlib", "cdylib", "rlib" ]
 
 [build-dependencies.tauri-build]
 version = "2.0.0"
-features = []
+features = [ ]
 
 [dependencies]
 serde_json = "1.0"
@@ -31,23 +31,23 @@ futures = "0.3.31"
 governor = "0.10.2"
 maplit = "1.0.2"
 
-[dependencies.hyper-rustls]
-version = "0.27"
-default-features = false
-features = ["native-tokio", "http1", "ring"]
+  [dependencies.hyper-rustls]
+  version = "0.27"
+  default-features = false
+  features = [ "native-tokio", "http1", "ring" ]
 
-[dependencies.reqwest]
-version = "0.12"
-features = ["json"]
+  [dependencies.reqwest]
+  version = "0.12"
+  features = [ "json" ]
 
-[dependencies.tauri]
-version = "2.9.0"
-features = []
+  [dependencies.tauri]
+  version = "2.9.0"
+  features = [ ]
 
-[dependencies.serde]
-version = "1.0"
-features = ["derive"]
+  [dependencies.serde]
+  version = "1.0"
+  features = [ "derive" ]
 
-[dependencies.tokio]
-version = "1.48"
-features = ["full"]
+  [dependencies.tokio]
+  version = "1.48"
+  features = [ "full" ]
