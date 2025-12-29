@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import prettier from 'prettier';
 import semver from 'semver';
-import TOML from '@iarna/toml'; // Для парсинга и сериализации TOML; почему: оригинальный 'toml' только парсит, этот полный.
+import TOML from '@iarna/toml';
 
 const PACKAGE_JSON = 'package.json';
 const CARGO_TOML = 'src-tauri/Cargo.toml';
@@ -27,9 +27,6 @@ function execCommand(command: string, options: any = {}) {
     return execSync(command, options);
 }
 
-/**
- * Checking the availability of gh CLI – оставляем, т.к. может пригодиться для других операций, но в скрипте не используем gh release.
- */
 function checkGhCli() {
     try {
         execSync('gh --version', { stdio: 'ignore' });
@@ -91,9 +88,6 @@ async function changeVersionInToml(tomlPath: string, version: string) {
     }
 }
 
-/**
- * Git operations: add, commit, push branch. Почему: как в старом, для фиксации изменений.
- */
 async function performGitOperations(version: string, branch: string) {
     try {
         execCommand('git reset', { stdio: 'ignore' });
@@ -116,9 +110,6 @@ async function performGitOperations(version: string, branch: string) {
     }
 }
 
-/**
- * Create and push git tag. Почему: заменяет gh release create, т.к. релиз и билд на actions, триггер по тегу.
- */
 async function createAndPushTag(version: string) {
     logAction('Creating and pushing git tag', version);
 
@@ -128,7 +119,7 @@ async function createAndPushTag(version: string) {
     }
 
     try {
-        execCommand(`git tag v${version}`, { stdio: 'inherit' });
+        execCommand(`git tag ${version}`, { stdio: 'inherit' });
         execCommand(`git push origin ${version}`, { stdio: 'inherit' });
         console.log(chalk.green(`Tag ${version} created and pushed`));
     } catch (error) {
@@ -226,17 +217,12 @@ async function versionMenu(
     }
 }
 
-/**
- * Getting versions from git tags. Почему: как в старом, для consistency.
- */
 async function getVersion(): Promise<{
     version: string;
     previousVersion: string;
 }> {
     const tagOutput = execSync('git tag', { stdio: 'pipe' }).toString().trim();
-    const tags = tagOutput
-        ? tagOutput.split('\n').map((t) => t.replace(/^v/, ''))
-        : []; // Убираем 'v' если есть, предполагаем версии без v.
+    const tags = tagOutput ? tagOutput.split('\n') : [];
     const currentVersion = tags[tags.length - 1] || '0.0.0';
 
     if (tags.length === 0) {
@@ -262,7 +248,7 @@ function checkAllFilesExist() {
 export async function release(isDryRunOption: boolean): Promise<void> {
     isDryRun = isDryRunOption;
 
-    checkGhCli(); // Оставляем, хотя не используем gh, но фишка старая.
+    checkGhCli();
 
     const allFilesExist = checkAllFilesExist();
     if (!allFilesExist) {
@@ -291,8 +277,6 @@ export async function release(isDryRunOption: boolean): Promise<void> {
             case 'r':
                 continue;
         }
-
-        // Убрали чек ченджлога, т.к. парсинг удален.
 
         await changeVersionInJson(PACKAGE_JSON, RELEASE_VERSION, ['version']);
         await changeVersionInJson(TAURI_CONF, RELEASE_VERSION, ['version']);
@@ -363,8 +347,5 @@ export async function release(isDryRunOption: boolean): Promise<void> {
     }
 }
 
-// Запуск, если скрипт вызван напрямую. Почему: для удобства, как standalone.
-if (require.main === module) {
-    const dryRun = process.argv.includes('--dry-run');
-    release(dryRun);
-}
+const dryRun = process.argv.includes('--dry-run');
+release(dryRun);
