@@ -58,7 +58,7 @@ const DriveTree = () => {
         new Set()
     );
 
-    const animationFrame = useRef<number>();
+    const animationFrame = useRef<number>(0);
     const nodeAnimations = useRef<Map<string, number>>(new Map());
     const lastDrawTime = useRef<number>(0);
     const treeCache = useRef<{

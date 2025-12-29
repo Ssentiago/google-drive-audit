@@ -52,7 +52,7 @@ const AuditTree = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-    const animationFrame = useRef<number>();
+    const animationFrame = useRef<number>(1);
     const nodeAnimations = useRef<Map<string, number>>(new Map());
     const lastDrawTime = useRef<number>(0);
 

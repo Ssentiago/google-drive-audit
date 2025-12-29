@@ -204,7 +204,7 @@ export const DriveAudit: React.FC = () => {
     }, [logs]);
 
     useEffect(() => {
-        let timer: NodeJS.Timeout | null = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
 
         if (scanning) {
             setElapsedSeconds(0);

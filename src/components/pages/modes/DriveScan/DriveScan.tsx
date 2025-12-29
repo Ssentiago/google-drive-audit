@@ -130,7 +130,7 @@ const DriveScan = () => {
     }, [logs]);
 
     useEffect(() => {
-        let timer: NodeJS.Timeout | null = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
 
         if (isScanning) {
             setElapsedSeconds(0);
