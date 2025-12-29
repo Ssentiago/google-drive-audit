@@ -1,170 +1,255 @@
-use crate::tokens::{Tokens, clear_tokens, get_tokens, is_token_valid, save_tokens};
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::cmp::min;
-use tiny_http::{Response, Server};
-use url::Url;
+use google_drive3::DriveHub;
+use google_sheets4::Sheets;
+use hyper_rustls::HttpsConnector;
+use hyper_util::{
+    client::legacy::{connect::HttpConnector, Client},
+    rt::TokioExecutor,
+};
+use once_cell::sync::OnceCell;
+use std::{future::Future, pin::Pin, sync::Arc};
+use tauri::{AppHandle, Manager};
+use tokio::sync::Mutex as TokioMutex;
+use yup_oauth2::{
+    authenticator::Authenticator, authenticator_delegate::InstalledFlowDelegate,
+    InstalledFlowReturnMethod,
+};
+
+use reqwest;
 
 pub const CLIENT_ID: &str =
     "89904030073-n57leahr5epo8bf7q1qlo2spnui75d80.apps.googleusercontent.com";
 pub const CLIENT_SECRET: &str = "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";
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_in: u64,
+pub type HttpsConn = HttpsConnector<HttpConnector>;
+type AuthType = Authenticator<HttpsConn>;
+
+static AUTHENTICATOR: OnceCell<TokioMutex<Option<AuthType>>> = OnceCell::new();
+
+struct TauriFlowDelegate;
+
+impl InstalledFlowDelegate for TauriFlowDelegate {
+    fn present_user_url<'a>(
+        &'a self,
+        url: &'a str,
+        need_code: bool,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
+        Box::pin(async move {
+            open::that(url).map_err(|e| e.to_string())?;
+            if need_code {
+                Err("Code input not supported".to_string())
+            } else {
+                Ok(String::new())
+            }
+        })
+    }
 }
 
-#[tauri::command]
-pub async fn start_google_oauth(app: tauri::AppHandle) -> Result<String, String> {
-    let server = Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
-    let port = match server.server_addr() {
-        tiny_http::ListenAddr::IP(addr) => addr.port(),
-        _ => return Err("Не удалось получить порт".to_string()),
-    };
+async fn get_or_create_authenticator(app: &AppHandle) -> Result<(), String> {
+    let auth_cell = AUTHENTICATOR.get_or_init(|| TokioMutex::new(None));
+    let mut auth_guard = auth_cell.lock().await;
 
-    let redirect_uri = format!("http://localhost:{}", port);
-    let auth_url = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?\
-        client_id={}&\
-        redirect_uri={}&\
-        response_type=code&\
-        scope=https://www.googleapis.com/auth/drive%20https://www.googleapis.com/auth/spreadsheets%20email%20profile&\
-        access_type=offline&\
-        prompt=consent",
-        CLIENT_ID,
-        urlencoding::encode(&redirect_uri)
-    );
-
-    open::that(&auth_url).map_err(|e| e.to_string())?;
-
-    let request = server.recv().map_err(|e| e.to_string())?;
-    let url_str = format!("http://localhost{}", request.url());
-    let parsed_url = Url::parse(&url_str).map_err(|e| e.to_string())?;
-    let code = parsed_url
-        .query_pairs()
-        .find(|(key, _)| key == "code")
-        .map(|(_, value)| value.to_string())
-        .ok_or("No code in callback")?;
-
-    let html =
-        "<html><body><h1>✅ Авторизация успешна!</h1><p>Можете закрыть это окно.</p></body></html>";
-    request
-        .respond(
-            Response::from_string(html).with_header(
-                tiny_http::Header::from_bytes(
-                    &b"Content-Type"[..],
-                    &b"text/html; charset=utf-8"[..],
-                )
-                .unwrap(),
-            ),
-        )
-        .map_err(|e| e.to_string())?;
-
-    let token = exchange_code_for_token(&code, &redirect_uri).await?;
-    let tokens = Tokens {
-        access_token: token.access_token.clone(),
-        refresh_token: token.refresh_token.clone(),
-        expires_at: (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            + token.expires_in),
-    };
-
-    save_tokens(&app, &tokens)?;
-    Ok(token.access_token)
-}
-
-async fn exchange_code_for_token(code: &str, redirect_uri: &str) -> Result<TokenResponse, String> {
-    let client = Client::new();
-    let params = [
-        ("code", code),
-        ("client_id", CLIENT_ID),
-        ("client_secret", CLIENT_SECRET),
-        ("redirect_uri", redirect_uri),
-        ("grant_type", "authorization_code"),
-    ];
-
-    let response = client
-        .post("https://oauth2.googleapis.com/token")
-        .form(&params)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    response.json().await.map_err(|e| e.to_string())
-}
-
-// 🔥 ГЛАВНАЯ ФУНКЦИЯ: получает валидный токен или обновляет
-#[tauri::command]
-pub async fn get_valid_access_token(app: tauri::AppHandle) -> Result<String, String> {
-    let mut tokens = get_tokens(&app)?;
-
-    if is_token_valid(&tokens) {
-        return Ok(tokens.access_token);
+    if auth_guard.is_some() {
+        return Ok(());
     }
 
-    // Токен протух → обновляем
-    let new_token = refresh_access_token_inner(&app).await?;
-    Ok(new_token)
+    let token_file = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("google_tokens.json");
+
+    let auth = yup_oauth2::InstalledFlowAuthenticator::builder(
+        yup_oauth2::ApplicationSecret {
+            client_id: CLIENT_ID.to_string(),
+            client_secret: CLIENT_SECRET.to_string(),
+            auth_uri: "https://accounts.google.com/o/oauth2/auth".to_string(),
+            token_uri: "https://oauth2.googleapis.com/token".to_string(),
+            auth_provider_x509_cert_url: Some(
+                "https://www.googleapis.com/oauth2/v1/certs".to_string(),
+            ),
+            redirect_uris: vec!["http://localhost".to_string()],
+            project_id: None,
+            client_email: None,
+            client_x509_cert_url: None,
+        },
+        InstalledFlowReturnMethod::HTTPRedirect,
+    )
+    .persist_tokens_to_disk(token_file)
+    .flow_delegate(Box::new(TauriFlowDelegate))
+    .build()
+    .await
+    .map_err(|e| e.to_string())?;
+
+    *auth_guard = Some(auth);
+    Ok(())
 }
 
-// Внутренняя функция обновления (без проверки валидности)
-pub async fn refresh_access_token_inner(app: &tauri::AppHandle) -> Result<String, String> {
-    let tokens = get_tokens(app)?;
-    let refresh_token = tokens.clone().refresh_token.ok_or("Нет refresh токена")?;
+fn build_connector() -> HttpsConn {
+    hyper_rustls::HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .unwrap()
+        .https_or_http()
+        .enable_http1()
+        .build()
+}
 
-    let client = Client::new();
-    let params = [
-        ("refresh_token", refresh_token.as_str()),
-        ("client_id", CLIENT_ID),
-        ("client_secret", CLIENT_SECRET),
-        ("grant_type", "refresh_token"),
+pub async fn get_drive_hub(app: &AppHandle) -> Result<Arc<DriveHub<HttpsConn>>, String> {
+    get_or_create_authenticator(app).await?;
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth = auth_guard.as_ref().unwrap();
+
+    let scopes = &["https://www.googleapis.com/auth/drive"];
+    let _ = auth.token(scopes).await.map_err(|e| e.to_string())?;
+
+    drop(auth_guard);
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth_clone = auth_guard.as_ref().unwrap().clone();
+    drop(auth_guard);
+
+    let client = Client::builder(TokioExecutor::new()).build(build_connector());
+
+    Ok(Arc::new(DriveHub::new(client, auth_clone)))
+}
+pub async fn get_sheets_hub(app: &AppHandle) -> Result<Arc<Sheets<HttpsConn>>, String> {
+    get_or_create_authenticator(app).await?;
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth = auth_guard.as_ref().unwrap().clone();
+
+    let client = Client::builder(TokioExecutor::new()).build(build_connector());
+    Ok(Arc::new(Sheets::new(client, auth)))
+}
+
+#[tauri::command]
+pub async fn start_google_oauth(app: AppHandle) -> Result<String, String> {
+    get_or_create_authenticator(&app).await?;
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth = auth_guard.as_ref().unwrap();
+
+    let scopes = &[
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
     ];
 
-    let response = client
-        .post("https://oauth2.googleapis.com/token")
-        .form(&params)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let token: TokenResponse = response.json().await.map_err(|e| e.to_string())?;
-
-    let new_tokens = Tokens {
-        access_token: token.access_token.clone(),
-        refresh_token: tokens.refresh_token,
-        expires_at: (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            + token.expires_in),
-    };
-
-    save_tokens(app, &new_tokens)?;
-    Ok(token.access_token)
+    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
+    Ok(token.token().unwrap_or_default().to_string())
 }
 
 #[tauri::command]
-pub fn logout(app: tauri::AppHandle) -> Result<(), String> {
-    clear_tokens(&app)
+pub async fn get_valid_access_token(app: AppHandle) -> Result<String, String> {
+    get_or_create_authenticator(&app).await?;
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth = auth_guard.as_ref().unwrap();
+
+    let scopes = &[
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets",
+    ];
+
+    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
+    Ok(token.token().unwrap_or_default().to_string())
 }
 
 #[tauri::command]
-pub fn is_authenticated(app: tauri::AppHandle) -> Result<bool, String> {
-    let tokens = get_tokens(&app)?;
-    Ok(is_token_valid(&tokens))
+pub async fn logout(app: AppHandle) -> Result<(), String> {
+    println!("logout: начало");
+
+    let token_file = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("google_tokens.json");
+
+    println!("logout: token_file = {:?}", token_file);
+
+    if token_file.exists() {
+        std::fs::remove_file(token_file).map_err(|e| e.to_string())?;
+        println!("logout: файл удалён");
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
-pub fn force_reauth(app: tauri::AppHandle) -> Result<(), String> {
-    clear_tokens(&app)?;
+pub async fn is_authenticated(app: AppHandle) -> Result<bool, String> {
+    let token_file = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("google_tokens.json");
+
+    Ok(token_file.exists())
+}
+
+#[tauri::command]
+pub fn force_reauth(app: AppHandle) -> Result<(), String> {
+    let token_file = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("google_tokens.json");
+
+    if token_file.exists() {
+        std::fs::remove_file(token_file).map_err(|e| e.to_string())?;
+    }
+
     Ok(())
 }
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     open::that(url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_user_email(app: AppHandle) -> Result<String, String> {
+    let hub = get_drive_hub(&app).await?;
+
+    let (response, about) = hub
+        .about()
+        .get()
+        .param("fields", "user,storageQuota")
+        .doit()
+        .await
+        .map_err(|e| format!("About error: {}", e))?;
+
+    if !response.status().is_success() {
+        return Ok(("Cannot get user info".to_string()));
+    }
+
+    let user = about.user;
+
+    if let Some(user) = user {
+        return Ok(user.email_address.unwrap_or("".to_string()));
+    }
+
+    return Ok(("Cannot get user info".to_string()));
+}
+
+#[tauri::command]
+pub async fn get_current_token(app: AppHandle) -> Result<String, String> {
+    get_or_create_authenticator(&app).await?;
+
+    let auth_cell = AUTHENTICATOR.get().unwrap();
+    let auth_guard = auth_cell.lock().await;
+    let auth = auth_guard.as_ref().unwrap();
+
+    let scopes = &[
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets",
+    ];
+
+    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
+    Ok(token.token().unwrap_or_default().to_string())
 }
