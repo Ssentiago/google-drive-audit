@@ -1,0 +1,1 @@
+export type UniqueKey = string;

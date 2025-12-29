@@ -1,16 +1,41 @@
-import React from 'react';
-import Auth from './components/pages/Auth/Auth';
-import DriveScan from './components/pages/DriveScan/DriveScan.tsx';
-import AccessList from './components/pages/DriveScan/components/AccessList/AccessList';
-import { useGlobalContext } from './core/GlobalContext';
+import { Box, CircularProgress } from '@mui/material';
 import { ScanProvider } from './core/ScanContext.tsx';
-import About from './components/pages/About/About.tsx';
-import DirectScan from './components/pages/DirectScan/DirectScan.tsx';
+import Auth from './components/pages/Auth/Auth.tsx';
 import Main from './components/pages/Main/Main.tsx';
-import Audit, { AuditMode } from './components/pages/Audit/Audit.tsx';
+import { useGlobalContext } from './core/GlobalContext.tsx';
+import React, { useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import DirectScan from './components/pages/modes/DirectScan/DirectScan.tsx';
+import DriveScan from './components/pages/modes/DriveScan/DriveScan.tsx';
+import AccessList from './components/pages/modes/DriveScan/components/AccessList/AccessList.tsx';
+import About from './components/pages/About/About.tsx';
+import { DriveAudit } from './components/pages/modes/DriveAudit/DriveAudit.tsx';
 
 const App: React.FC = () => {
-    const { currentPage } = useGlobalContext();
+    const { currentPage, setCurrentPage, setUserEmail } = useGlobalContext();
+
+    const [isLoading, setIsLoading] = React.useState(true);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const isAuth = await invoke('is_authenticated');
+                if (isAuth) {
+                    const email: string = await invoke('get_user_email');
+                    setUserEmail(email);
+                }
+                setCurrentPage(isAuth ? 'main' : 'login');
+            } catch {
+                setCurrentPage('login');
+            } finally {
+                setIsLoading(false);
+            }
+        })();
+    }, []);
+
+    if (isLoading) {
+        return null;
+    }
 
     if (
         ![
@@ -20,19 +45,23 @@ const App: React.FC = () => {
             'direct-scan',
             'drive-scan',
             'audit',
+            'login',
         ].includes(currentPage)
     ) {
-        return <Auth />;
+        setCurrentPage('main');
+        return null;
     }
 
     return (
         <ScanProvider>
+            {currentPage === 'login' && <Auth />}
+
             {currentPage === 'main' && <Main />}
             {currentPage === 'direct-scan' && <DirectScan />}
             {currentPage === 'drive-scan' && <DriveScan />}
             {currentPage === 'access-list' && <AccessList />}
-            {currentPage === 'about' && <About></About>}
-            {currentPage == 'audit' && <AuditMode />}
+            {currentPage === 'about' && <About />}
+            {currentPage === 'audit' && <DriveAudit />}
         </ScanProvider>
     );
 };

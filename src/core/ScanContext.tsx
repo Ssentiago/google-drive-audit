@@ -1,15 +1,15 @@
-// src/core/ScanContext.tsx
-import {
+import React, {
     createContext,
     useContext,
     useState,
     ReactNode,
     useEffect,
+    SetStateAction,
 } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
-interface AccessResult {
-    type: string;
+export interface Access {
+    roleType: string;
     itemType: string;
     name: string;
     url: string;
@@ -18,26 +18,30 @@ interface AccessResult {
     itemId: string;
     email: string;
     parentId: string;
-    permissionId?: string;
+    permissionId: string | null;
+    path: string;
+}
+
+export interface UndeletedOriginal {
+    copyId: string;
+    copyName: string;
+    copyUrl: string | null;
+    originalId: string;
+    originalName: string;
+    originalUrl: string | null;
     path: string;
 }
 
 interface ScanResult {
-    access: AccessResult[];
-    scanDate: string;
-}
-
-interface ScanInfo {
-    scan_date: string;
-    email_count: number;
-    emails: string[];
-    total_access_count: number;
+    suspiciousAccesses: Access[];
+    undeletedOriginals: UndeletedOriginal[];
+    processedFiles: number;
+    processedFolders: number;
 }
 
 interface ScanContextType {
     result: ScanResult | null;
-    scanInfo: ScanInfo | null;
-    isFromCache: boolean;
+    setResult: React.Dispatch<SetStateAction<ScanResult | null>>;
     refresh: () => Promise<void>;
 }
 
@@ -45,20 +49,15 @@ const ScanContext = createContext<ScanContextType | undefined>(undefined);
 
 export const ScanProvider = ({ children }: { children: ReactNode }) => {
     const [result, setResult] = useState<ScanResult | null>(null);
-    const [scanInfo, setScanInfo] = useState<ScanInfo | null>(null);
-    const [isFromCache, setIsFromCache] = useState(false);
 
     const loadFromCache = async () => {
         try {
             const cached: ScanResult = await invoke('load_scan_cache');
-            const info: ScanInfo | null = await invoke('get_scan_info');
+            console.log(cached);
+
             setResult(cached);
-            setScanInfo(info);
-            setIsFromCache(true);
         } catch {
             setResult(null);
-            setScanInfo(null);
-            setIsFromCache(false);
         }
     };
 
@@ -71,9 +70,7 @@ export const ScanProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     return (
-        <ScanContext.Provider
-            value={{ result, scanInfo, isFromCache, refresh }}
-        >
+        <ScanContext.Provider value={{ result, refresh, setResult }}>
             {children}
         </ScanContext.Provider>
     );
