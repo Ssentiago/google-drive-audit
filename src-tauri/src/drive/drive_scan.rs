@@ -2,6 +2,7 @@ use crate::oauth::{get_drive_hub, get_sheets_hub, get_user_email};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt::format;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -479,45 +480,43 @@ impl DriveScanner {
 
         // Кейс 2: Мы владельцы - проверяем неудалённые оригиналы
         if self.is_logged_user_an_owner(&item) {
-            let props = match read_custom_properties(self.app.clone(), item_id).await {
-                Ok(p) => p,
-                Err(_) => return,
-            };
-            let original_id = match props.get("original_item_id") {
-                Some(id) => id,
-                None => return,
-            };
-            match get_item(self.app.clone(), original_id).await {
-                Ok(original) => {
-                    self.log(&format!(
-                        "💣 Найден неудалённый оригинал: {}",
-                        original.name.as_ref().unwrap_or(&"???".to_string())
-                    ));
+            if let Ok(props) = read_custom_properties(self.app.clone(), item_id).await {
+                if let Some(original_id) = props.get("original_item_id") {
+                    match get_item(self.app.clone(), original_id).await {
+                        Ok(original) => {
+                            self.log(&format!(
+                                "💣 Найден неудалённый оригинал: {}",
+                                original.name.as_ref().unwrap_or(&"???".to_string())
+                            ));
 
-                    self.undeleted_originals
-                        .write()
-                        .await
-                        .push(UndeletedOriginal {
-                            copy_id: item_id.to_string(),
-                            copy_name: item.name.clone().unwrap_or_default(),
-                            copy_url: item.web_view_link.clone(),
-                            original_id: original_id.clone(),
-                            original_name: original.name.unwrap_or_default(),
-                            original_url: original.web_view_link,
-                            path: path.to_string(),
-                        });
+                            self.undeleted_originals
+                                .write()
+                                .await
+                                .push(UndeletedOriginal {
+                                    copy_id: item_id.to_string(),
+                                    copy_name: item.name.clone().unwrap_or_default(),
+                                    copy_url: item.web_view_link.clone(),
+                                    original_id: original_id.clone(),
+                                    original_name: original.name.unwrap_or_default(),
+                                    original_url: original.web_view_link,
+                                    path: path.to_string(),
+                                });
 
-                    let count = self.undeleted_originals.read().await.len();
-                    self.log(&format!("📊 Всего неудалённых оригиналов: {}", count));
-                }
-                Err(_) => {
-                    let _ =
-                        delete_custom_property(self.app.clone(), item_id, vec!["original_item_id"])
+                            let count = self.undeleted_originals.read().await.len();
+                            self.log(&format!("📊 Всего неудалённых оригиналов: {}", count));
+                        }
+                        Err(_) => {
+                            let _ = delete_custom_property(
+                                self.app.clone(),
+                                item_id,
+                                vec!["original_item_id"],
+                            )
                             .await;
+                        }
+                    }
                 }
             }
         }
-
         if !new_accesses.is_empty() {
             self.emit_tree_node(TreeNode {
                 id: item.id.clone().unwrap_or_default(),
