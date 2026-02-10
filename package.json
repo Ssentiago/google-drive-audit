@@ -35,7 +35,8 @@
     "react-virtualized": "^9.22.6",
     "styled-components": "^6.1.19",
     "tailwind-merge": "^3.4.0",
-    "toml": "^3.0.0"
+    "toml": "^3.0.0",
+    "validator": "^13.15.26"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
