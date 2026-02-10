@@ -12,6 +12,7 @@ import TerminalIcon from '@mui/icons-material/Terminal';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import TableChartIcon from '@mui/icons-material/TableChart';
+import validator from 'validator';
 
 import {
     Container,
@@ -304,9 +305,7 @@ const DriveScan = () => {
             .split(/[,\n]/)
             .map((e) => e.trim())
             .filter(Boolean);
-        const emailRegex = /^[^\s@]+@gmail.com$/;
-
-        return emails.every((email) => emailRegex.test(email));
+        return emails.every((email) => validator.isEmail(email));
     };
 
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -330,7 +329,7 @@ const DriveScan = () => {
 
         if (!validateEmails(value)) {
             setEmailErrorMsg(
-                'Проверьте почту. Разрешены только валидные Gmail-адреса'
+                'Проверьте ввод. Разрешены только валидные адреса электронной почты'
             );
             return;
         }
