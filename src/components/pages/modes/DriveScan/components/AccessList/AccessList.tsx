@@ -23,6 +23,7 @@ import { UniqueKey } from './types/types.ts';
 import { getUniqueKey } from './utils.ts';
 import { HeatmapView } from './components/HeatmapView.tsx';
 import { CopiesView } from './components/CopiesView.tsx';
+import LogDrawer from '../../../../../common/LogDrawer.tsx';
 
 const BulkActionsBar: React.FC<{
     selectedCount: number;
@@ -104,7 +105,7 @@ const AccessList = () => {
     );
 
     // Search filters
-    const [searchUser, setSearchUser] = useState('');
+    const [searchUser, setSearchUser] = useState('all');
     const [searchFileName, setSearchFileName] = useState('');
     const [searchPath, setSearchPath] = useState('');
     const [filterAccessLevel, setFilterAccessLevel] = useState<
@@ -112,7 +113,7 @@ const AccessList = () => {
     >('all');
     const [sortBy, setSortBy] = useState<'name' | 'user' | 'path' | 'level'>(
         'level'
-    );
+    )
 
     useEffect(() => {
         if (logBoxRef.current) {
@@ -127,14 +128,16 @@ const AccessList = () => {
                 copyId,
             });
 
-            // Убираем обработанную копию из списка
             setResult((prev) => {
                 if (!prev) return prev;
+
+                const filteredOriginals = prev.undeletedOriginals.filter(
+                    (c) => c.copyId !== copyId
+                );
+
                 return {
                     ...prev,
-                    undeletedOriginals: prev.undeletedOriginals.filter(
-                        (c) => c.copyId !== copyId
-                    ),
+                    undeletedOriginals: filteredOriginals,
                 };
             });
         } catch (err) {
@@ -160,7 +163,8 @@ const AccessList = () => {
                 selectedItems.has(getUniqueKey(r))
             );
             const BATCH_SIZE = 50;
-            const processedOwners: UndeletedOriginal[] = []; // Новое
+            const processedOwners: UndeletedOriginal[] = [];
+            const copiedPaths = new Set<string>(); // Собираем пути скопированных объектов
 
             for (let i = 0; i < items.length; i += BATCH_SIZE) {
                 const batch = items.slice(i, i + BATCH_SIZE);
@@ -176,31 +180,32 @@ const AccessList = () => {
                     batch.map(async (item) => {
                         try {
                             if (item.roleType === 'owner') {
-                                const copyInfo = await invoke<{
-                                    copyId: string;
-                                    copyName: string;
-                                    copyUrl: string | null;
-                                    originalId: string;
-                                    originalName: string;
-                                    originalUrl: string | null;
-                                }>('copy_and_clean', {
-                                    itemId: item.itemId,
-                                    name: item.name,
-                                    parentId: item.parentId,
-                                    suspiciousEmails: [
-                                        ...new Set(
-                                            result.suspiciousAccesses.map(
-                                                (r) => r.email
-                                            )
-                                        ),
-                                    ],
-                                });
+                                const copyInfo =
+                                    await invoke<UndeletedOriginal>(
+                                        'copy_and_clean',
+                                        {
+                                            itemId: item.itemId,
+                                            name: item.name,
+                                            parentId: item.parentId,
+                                            suspiciousEmails: [
+                                                ...new Set(
+                                                    result.suspiciousAccesses.map(
+                                                        (r) => r.email
+                                                    )
+                                                ),
+                                            ],
+                                        }
+                                    );
 
-                                // Добавляем в массив обработанных владельцев
                                 processedOwners.push({
                                     ...copyInfo,
                                     path: item.path,
                                 });
+
+                                const fullPath = item.path
+                                    ? `${item.path} / ${item.name}`
+                                    : item.name;
+                                copiedPaths.add(fullPath);
 
                                 return `✅ Копия: ${item.name}`;
                             } else if (item.permissionId) {
@@ -226,7 +231,6 @@ const AccessList = () => {
                 ]);
             }
 
-            // Обновляем результаты: убираем обработанные + добавляем новые копии
             setResult((prev) => {
                 if (!prev) return prev;
 
@@ -234,9 +238,21 @@ const AccessList = () => {
 
                 return {
                     ...prev,
-                    suspiciousAccesses: prev.suspiciousAccesses.filter(
-                        (a) => !processedKeys.has(getUniqueKey(a))
-                    ),
+                    suspiciousAccesses: prev.suspiciousAccesses.filter((a) => {
+                        // Убираем выбранные
+                        if (processedKeys.has(getUniqueKey(a))) return false;
+
+                        if (a.roleType === 'owner') {
+                            for (const copiedPath of copiedPaths) {
+                                // Проверяем, что путь элемента начинается с пути скопированной папки
+                                if (a.path.startsWith(copiedPath)) {
+                                    return false;
+                                }
+                            }
+                        }
+
+                        return true;
+                    }),
                     undeletedOriginals: [
                         ...prev.undeletedOriginals,
                         ...processedOwners,
@@ -288,6 +304,22 @@ const AccessList = () => {
             sx={{ pb: 10 }}
         >
             <Card sx={{ p: 4, mt: 4 }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        mb: 2,
+                    }}
+                >
+                    <Button
+                        variant='outlined'
+                        onClick={() => setCurrentPage('drive-scan')}
+                        size='medium'
+                    >
+                        ← Назад
+                    </Button>
+                </Box>
+
                 <DashboardHero access={result.suspiciousAccesses} />
 
                 <Box
@@ -346,6 +378,13 @@ const AccessList = () => {
                     >
                         📋 Наши копии
                     </Button>
+                    <LogDrawer
+                        logs={logs}
+                        isOpen={drawerOpen}
+                        onOpen={handleOpenDrawer}
+                        onClose={() => setDrawerOpen(false)}
+                        newLogsCount={newLogsCount}
+                    />
                 </Box>
 
                 {viewMode === 'heatmap' && (
@@ -428,46 +467,7 @@ const AccessList = () => {
                     />
                 )}
 
-                {
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            mt: 3,
-                        }}
-                    >
-                        <Button
-                            variant='outlined'
-                            startIcon={
-                                <Badge
-                                    badgeContent={newLogsCount}
-                                    color='error'
-                                >
-                                    <TerminalIcon />
-                                </Badge>
-                            }
-                            onClick={handleOpenDrawer}
-                        >
-                            Открыть логи ({logs.length})
-                        </Button>
-                    </Box>
-                }
-                <Box
-                    sx={{
-                        display: 'flex',
-                        gap: 2,
-                        mt: 4,
-                        justifyContent: 'center',
-                    }}
-                >
-                    <Button
-                        variant='outlined'
-                        onClick={() => setCurrentPage('drive-scan')}
-                        size='large'
-                    >
-                        ← Назад
-                    </Button>
-                </Box>
+                {}
             </Card>
 
             <BulkActionsBar
@@ -476,38 +476,6 @@ const AccessList = () => {
                 onClear={() => setSelectedItems(new Set())}
                 isProcessing={isProcessing}
             />
-            <Drawer
-                anchor='right'
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-            >
-                <Box sx={{ width: 600, p: 2 }}>
-                    <Typography
-                        variant='h6'
-                        sx={{ mb: 2 }}
-                    >
-                        Лог обработки
-                    </Typography>
-                    <Box
-                        component='pre'
-                        ref={logBoxRef}
-                        sx={{
-                            bgcolor: '#1e1e1e',
-                            color: '#d4d4d4',
-                            p: 2,
-                            borderRadius: 1,
-                            height: 'calc(100vh - 120px)',
-                            overflow: 'auto',
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                            m: 0,
-                        }}
-                    >
-                        {logs.join('\n')}
-                    </Box>
-                </Box>
-            </Drawer>
         </Container>
     );
 };

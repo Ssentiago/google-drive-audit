@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { UndeletedOriginal } from '../../../../../../../core/ScanContext.tsx';
 import { Box, Button, Card, Typography } from '@mui/material';
 import { invoke } from '@tauri-apps/api/core';
@@ -23,6 +23,15 @@ export const CopiesView: React.FC<{
             </Card>
         );
     }
+
+    const handleOpenUrl = async (url: string | null) => {
+        if (!url) return;
+        try {
+            await invoke('open_url', { url });
+        } catch (e) {
+            console.error('Ошибка открытия URL:', e);
+        }
+    };
 
     return (
         <Box>
@@ -67,72 +76,62 @@ export const CopiesView: React.FC<{
                 📋 Наши копии с неубранными оригиналами ({copies.length})
             </Typography>
 
-            {copies.map((copy) => {
-                return (
-                    <Card
-                        key={copy.copyId}
-                        sx={{ p: 3, mb: 2 }}
+            {copies.map((copy) => (
+                <Card
+                    key={copy.copyId}
+                    sx={{ p: 3, mb: 2 }}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            gap: 2,
+                            alignItems: 'start',
+                        }}
                     >
-                        <Box
-                            sx={{
-                                display: 'flex',
-                                gap: 2,
-                                alignItems: 'start',
-                            }}
-                        >
-                            <Box sx={{ flex: 1 }}>
-                                <Typography
-                                    variant='subtitle1'
-                                    sx={{ fontWeight: 600, mb: 1 }}
-                                >
-                                    {copy.copyName}
-                                </Typography>
-                                <Typography
-                                    variant='caption'
-                                    color='text.secondary'
-                                >
-                                    {copy.path}
-                                </Typography>
-                            </Box>
-
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button
-                                    variant='outlined'
-                                    size='small'
-                                    onClick={async () =>
-                                        await invoke('open_url', {
-                                            url: copy.copyUrl,
-                                        })
-                                    }
-                                >
-                                    Открыть копию
-                                </Button>
-                                <Button
-                                    variant='outlined'
-                                    size='small'
-                                    onClick={async () =>
-                                        await invoke('open_url', {
-                                            url: copy.originalUrl,
-                                        })
-                                    }
-                                >
-                                    Открыть оригинал
-                                </Button>
-                                <Button
-                                    variant='contained'
-                                    color='warning'
-                                    size='small'
-                                    onClick={() =>
-                                        onProcess(copy.copyId, copy.originalId)
-                                    }
-                                >
-                                    Убрать из папки
-                                </Button>
-                            </Box>
+                        <Box sx={{ flex: 1 }}>
+                            <Typography
+                                variant='subtitle1'
+                                sx={{ fontWeight: 600, mb: 1 }}
+                            >
+                                {copy.copyName}
+                            </Typography>
+                            <Typography
+                                variant='caption'
+                                color='text.secondary'
+                            >
+                                {copy.path}
+                            </Typography>
                         </Box>
-                    </Card>
-                );
-            })}
+
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Button
+                                variant='outlined'
+                                size='small'
+                                onClick={() => handleOpenUrl(copy.copyUrl)}
+                            >
+                                Открыть копию
+                            </Button>
+                            <Button
+                                variant='outlined'
+                                size='small'
+                                onClick={() => handleOpenUrl(copy.originalUrl)}
+                            >
+                                Открыть оригинал
+                            </Button>
+                            <Button
+                                variant='contained'
+                                color='warning'
+                                size='small'
+                                onClick={() =>
+                                    onProcess(copy.copyId, copy.originalId)
+                                }
+                            >
+                                Убрать из папки
+                            </Button>
+                        </Box>
+                    </Box>
+                </Card>
+            ))}
         </Box>
     );
 };

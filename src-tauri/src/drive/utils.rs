@@ -1,11 +1,14 @@
 use crate::drive::rate_semaphore::{GLOBAL_RATE_LIMITER, GLOBAL_SEMAPHORE};
-use crate::oauth::get_drive_hub;
-use serde::Deserialize;
+use crate::oauth::{get_drive_hub, get_sheets_hub};
+use google_drive3::api::File;
+use google_drive3::DriveHub;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use tokio::time::{sleep, timeout, Duration};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct Permission {
     pub id: Option<String>,
     #[serde(rename = "emailAddress")]
@@ -17,13 +20,13 @@ pub struct Permission {
     pub perm_type: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct Owner {
     #[serde(rename = "emailAddress")]
     pub email_address: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct DriveItem {
     pub id: Option<String>,
     pub name: Option<String>,
@@ -34,14 +37,63 @@ pub struct DriveItem {
     pub parents: Option<Vec<String>>,
     pub permissions: Option<Vec<Permission>>,
     pub owners: Option<Vec<Owner>>,
+    #[serde(default)]
+    pub properties: HashMap<String, String>,
 }
 
 impl DriveItem {
     pub fn is_folder(&self) -> bool {
         self.mime_type.as_deref() == Some("application/vnd.google-apps.folder")
     }
-}
 
+    pub fn get_property(&self, key: &str) -> Option<&String> {
+        self.properties.get(key)
+    }
+
+    pub fn set_property(&mut self, key: String, value: String) {
+        self.properties.insert(key, value);
+    }
+
+    pub fn delete_property(&mut self, key: &str) {
+        self.properties.remove(key);
+    }
+
+    pub async fn sync_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+        let hub = get_drive_hub(&app).await?;
+
+        let file_id = self.id.as_ref().ok_or("No file ID")?;
+
+        let mut file = File::default();
+        file.properties = Some(self.properties.clone());
+
+        hub.files()
+            .update(file, file_id)
+            .add_scope("https://www.googleapis.com/auth/drive")
+            .doit_without_upload()
+            .await
+            .map_err(|e| format!("Failed to sync properties: {}", e))?;
+
+        Ok(())
+    }
+
+    pub async fn fetch_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+        let hub = get_drive_hub(&app).await?;
+
+        let file_id = self.id.as_ref().ok_or("No file ID")?;
+
+        let result = hub
+            .files()
+            .get(file_id)
+            .add_scope("https://www.googleapis.com/auth/drive")
+            .param("fields", "properties")
+            .doit()
+            .await
+            .map_err(|e| format!("Failed to fetch properties: {}", e))?;
+
+        self.properties = result.1.properties.unwrap_or_default();
+        Ok(())
+    }
+}
 const MAX_RETRIES: u32 = 10;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_millis(1000);
@@ -104,7 +156,7 @@ pub async fn get_item(app: tauri::AppHandle, file_id: &str) -> Result<DriveItem,
                 .get(file_id)
                 .add_scope("https://www.googleapis.com/auth/drive")
                 .supports_all_drives(true)
-                .param("fields", "name,webViewLink,mimeType,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress)")
+                .param("fields", "name,webViewLink,mimeType,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress),properties")
                 .doit()
                 .await
                 .map_err(|e| format!("{}", e))?;
@@ -143,6 +195,7 @@ pub async fn get_item(app: tauri::AppHandle, file_id: &str) -> Result<DriveItem,
                 permissions: Some(perm),
                 owners,
                 parents: file.parents,
+                properties: file.properties.unwrap_or_default(),
             })
         },
         "get_item",
@@ -217,6 +270,7 @@ pub async fn list_folder_contents(
                                     .collect()
                             }),
                             parents: f.parents.clone(),
+                            properties: f.properties.clone().unwrap_or_default(),
                         })
                         .collect();
 

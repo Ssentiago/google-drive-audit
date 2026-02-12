@@ -45,7 +45,7 @@ const DashboardHero: React.FC<{
                 variant='h4'
                 sx={{ mb: 3, fontWeight: 700, textAlign: 'center' }}
             >
-                ⚠️ Найдено {stats.total} подозрительных доступов
+                ⚠️ Найдено {stats.total} доступов
             </Typography>
 
             <Box
@@ -74,7 +74,7 @@ const DashboardHero: React.FC<{
                         variant='body2'
                         color='text.secondary'
                     >
-                        👑 Владельцев (критично)
+                        👑 Владельцев
                     </Typography>
                 </Card>
 

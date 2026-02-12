@@ -29,6 +29,8 @@ import {
     ListItemText,
     LinearProgress,
     alpha,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -50,6 +52,8 @@ import { List as VirtualList, AutoSizer } from 'react-virtualized';
 import 'react-virtualized/styles.css';
 import AuditTree from './AuditTree.tsx';
 import { useGlobalContext } from '../../../../core/GlobalContext.tsx';
+import LogDrawer from '../../../common/LogDrawer.tsx';
+import { FolderSelector } from '../../../common/FolderSelector.tsx';
 
 interface AccessDetail {
     itemId: string;
@@ -103,7 +107,595 @@ interface SavedFolder {
     };
     scanHistory: any[];
 }
+const EmployeesView: React.FC<any> = ({
+    result,
+    searchQuery,
+    setSearchQuery,
+    roleFilter,
+    setRoleFilter,
+    sortBy,
+    setSortBy,
+    selectedEmployee,
+    setSelectedEmployee,
+    exportEmployee,
+    roleToRu,
+    filteredEmployees,
+    selectedEmpData,
+}) => {
+    return (
+        <Box>
+            {/* Filters */}
+            <Card sx={{ p: 2, mb: 2 }}>
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr',
+                        gap: 2,
+                    }}
+                >
+                    <TextField
+                        placeholder='Поиск по email или имени...'
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        size='small'
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position='start'>
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                    <Select
+                        value={roleFilter}
+                        onChange={(e) => setRoleFilter(e.target.value)}
+                        size='small'
+                    >
+                        <MenuItem value='all'>Все роли</MenuItem>
+                        <MenuItem value='owner'>Владелец</MenuItem>
+                        <MenuItem value='writer'>Редактор</MenuItem>
+                        <MenuItem value='commenter'>Комментатор</MenuItem>
+                        <MenuItem value='reader'>Просмотр</MenuItem>
+                    </Select>
+                    <Select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        size='small'
+                    >
+                        <MenuItem value='accesses'>По количеству</MenuItem>
+                        <MenuItem value='name'>По имени</MenuItem>
+                    </Select>
+                </Box>
+            </Card>
 
+            {/* Content */}
+            <Box
+                sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 480px)' }}
+            >
+                {/* Employees List */}
+                <Card
+                    sx={{
+                        flex: '0 0 60%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}
+                >
+                    <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                        <Typography
+                            variant='h6'
+                            sx={{ fontWeight: 600 }}
+                        >
+                            Сотрудники ({filteredEmployees.length})
+                        </Typography>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                        <AutoSizer>
+                            {({ height, width }) => (
+                                <VirtualList
+                                    height={height}
+                                    width={width}
+                                    rowCount={filteredEmployees.length}
+                                    rowHeight={80}
+                                    rowRenderer={({ index, key, style }) => {
+                                        const emp = filteredEmployees[index];
+                                        const isSelected =
+                                            selectedEmployee === emp.email;
+                                        return (
+                                            <div
+                                                key={key}
+                                                style={style}
+                                            >
+                                                <Paper
+                                                    variant='outlined'
+                                                    sx={{
+                                                        m: 1,
+                                                        p: 2,
+                                                        cursor: 'pointer',
+                                                        bgcolor: isSelected
+                                                            ? alpha(
+                                                                  '#1976d2',
+                                                                  0.1
+                                                              )
+                                                            : 'background.paper',
+                                                        borderColor: isSelected
+                                                            ? 'primary.main'
+                                                            : 'divider',
+                                                        transition: 'all 0.2s',
+                                                        '&:hover': {
+                                                            bgcolor: alpha(
+                                                                '#1976d2',
+                                                                0.05
+                                                            ),
+                                                            borderColor:
+                                                                'primary.main',
+                                                        },
+                                                    }}
+                                                    onClick={() =>
+                                                        setSelectedEmployee(
+                                                            emp.email
+                                                        )
+                                                    }
+                                                >
+                                                    <Stack
+                                                        direction='row'
+                                                        alignItems='center'
+                                                        spacing={2}
+                                                    >
+                                                        <Box
+                                                            sx={{
+                                                                flex: 1,
+                                                                minWidth: 0,
+                                                            }}
+                                                        >
+                                                            <Typography
+                                                                sx={{
+                                                                    fontWeight: 600,
+                                                                    overflow:
+                                                                        'hidden',
+                                                                    textOverflow:
+                                                                        'ellipsis',
+                                                                    whiteSpace:
+                                                                        'nowrap',
+                                                                }}
+                                                            >
+                                                                {
+                                                                    emp.displayName
+                                                                }
+                                                            </Typography>
+                                                            <Typography
+                                                                variant='body2'
+                                                                color='text.secondary'
+                                                                sx={{
+                                                                    overflow:
+                                                                        'hidden',
+                                                                    textOverflow:
+                                                                        'ellipsis',
+                                                                    whiteSpace:
+                                                                        'nowrap',
+                                                                    fontFamily:
+                                                                        'monospace',
+                                                                    fontSize: 12,
+                                                                }}
+                                                            >
+                                                                {emp.email}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Chip
+                                                            label={
+                                                                emp.totalAccess
+                                                            }
+                                                            color='primary'
+                                                            size='small'
+                                                            sx={{
+                                                                fontWeight: 600,
+                                                            }}
+                                                        />
+                                                        <Stack
+                                                            direction='row'
+                                                            spacing={0.5}
+                                                        >
+                                                            {Object.entries(
+                                                                emp.roles
+                                                            ).map(([r, c]) => (
+                                                                <Chip
+                                                                    key={r}
+                                                                    label={`${roleToRu(r)}: ${c}`}
+                                                                    size='small'
+                                                                    variant='outlined'
+                                                                />
+                                                            ))}
+                                                        </Stack>
+                                                        <Tooltip title='Экспорт'>
+                                                            <IconButton
+                                                                size='small'
+                                                                onClick={(
+                                                                    e
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    exportEmployee(
+                                                                        emp
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <DescriptionIcon fontSize='small' />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Stack>
+                                                </Paper>
+                                            </div>
+                                        );
+                                    }}
+                                />
+                            )}
+                        </AutoSizer>
+                    </Box>
+                </Card>
+
+                {/* Details Panel */}
+                <Card
+                    sx={{
+                        flex: '0 0 40%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}
+                >
+                    {selectedEmpData ? (
+                        <>
+                            <Box
+                                sx={{
+                                    p: 2,
+                                    borderBottom: 1,
+                                    borderColor: 'divider',
+                                }}
+                            >
+                                <Typography
+                                    variant='h6'
+                                    sx={{ fontWeight: 600 }}
+                                >
+                                    {selectedEmpData.displayName}
+                                </Typography>
+                                <Typography
+                                    variant='body2'
+                                    color='text.secondary'
+                                    sx={{
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        mt: 0.5,
+                                    }}
+                                >
+                                    {selectedEmpData.email}
+                                </Typography>
+                                <Chip
+                                    label={`${selectedEmpData.totalAccess} доступов`}
+                                    size='small'
+                                    color='primary'
+                                    sx={{ mt: 1, fontWeight: 600 }}
+                                />
+                            </Box>
+                            <Box sx={{ flex: 1, overflow: 'auto' }}>
+                                <AutoSizer>
+                                    {({ height, width }) => (
+                                        <VirtualList
+                                            height={height}
+                                            width={width}
+                                            rowCount={
+                                                selectedEmpData.accesses.length
+                                            }
+                                            rowHeight={100}
+                                            rowRenderer={({
+                                                index,
+                                                key,
+                                                style,
+                                            }) => {
+                                                const acc =
+                                                    selectedEmpData.accesses[
+                                                        index
+                                                    ];
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        style={style}
+                                                    >
+                                                        <Paper
+                                                            variant='outlined'
+                                                            sx={{
+                                                                m: 1,
+                                                                p: 1.5,
+                                                                transition:
+                                                                    'all 0.2s',
+                                                                '&:hover': {
+                                                                    bgcolor:
+                                                                        alpha(
+                                                                            '#1976d2',
+                                                                            0.05
+                                                                        ),
+                                                                    borderColor:
+                                                                        'primary.main',
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Stack
+                                                                spacing={0.5}
+                                                            >
+                                                                <Typography
+                                                                    variant='caption'
+                                                                    color='text.secondary'
+                                                                    sx={{
+                                                                        textTransform:
+                                                                            'uppercase',
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        acc.itemType
+                                                                    }
+                                                                </Typography>
+                                                                <Typography
+                                                                    variant='body2'
+                                                                    sx={{
+                                                                        fontWeight: 600,
+                                                                        overflow:
+                                                                            'hidden',
+                                                                        textOverflow:
+                                                                            'ellipsis',
+                                                                        whiteSpace:
+                                                                            'nowrap',
+                                                                    }}
+                                                                >
+                                                                    <a
+                                                                        href={
+                                                                            acc.url
+                                                                        }
+                                                                        target='_blank'
+                                                                        rel='noopener noreferrer'
+                                                                        style={{
+                                                                            color: 'inherit',
+                                                                            textDecoration:
+                                                                                'none',
+                                                                        }}
+                                                                    >
+                                                                        {
+                                                                            acc.itemName
+                                                                        }
+                                                                    </a>
+                                                                </Typography>
+                                                                <Typography
+                                                                    variant='caption'
+                                                                    color='text.secondary'
+                                                                >
+                                                                    {roleToRu(
+                                                                        acc.role
+                                                                    )}{' '}
+                                                                    • {acc.path}
+                                                                </Typography>
+                                                            </Stack>
+                                                        </Paper>
+                                                    </div>
+                                                );
+                                            }}
+                                        />
+                                    )}
+                                </AutoSizer>
+                            </Box>
+                        </>
+                    ) : (
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                height: '100%',
+                                p: 4,
+                                textAlign: 'center',
+                            }}
+                        >
+                            <Typography color='text.secondary'>
+                                Выберите сотрудника для просмотра доступов
+                            </Typography>
+                        </Box>
+                    )}
+                </Card>
+            </Box>
+        </Box>
+    );
+};
+
+const LinksView: React.FC<any> = ({
+    filteredLinks,
+    linkPathSearch,
+    setLinkPathSearch,
+    linkRoleFilter,
+    setLinkRoleFilter,
+    linkTypeFilter,
+    setLinkTypeFilter,
+    updateLinkRole,
+    removeAccess,
+}) => {
+    return (
+        <Box>
+            {/* Filters */}
+            <Card sx={{ p: 2, mb: 2 }}>
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: '2fr 1fr 1fr',
+                        gap: 2,
+                    }}
+                >
+                    <TextField
+                        placeholder='Поиск по пути или названию...'
+                        value={linkPathSearch}
+                        onChange={(e) => setLinkPathSearch(e.target.value)}
+                        size='small'
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position='start'>
+                                    <SearchIcon />
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                    <Select
+                        value={linkRoleFilter}
+                        onChange={(e) => setLinkRoleFilter(e.target.value)}
+                        size='small'
+                    >
+                        <MenuItem value='all'>Все доступы</MenuItem>
+                        <MenuItem value='reader'>Просмотр</MenuItem>
+                        <MenuItem value='commenter'>Комментатор</MenuItem>
+                        <MenuItem value='writer'>Редактор</MenuItem>
+                    </Select>
+                    <Select
+                        value={linkTypeFilter}
+                        onChange={(e) => setLinkTypeFilter(e.target.value)}
+                        size='small'
+                    >
+                        <MenuItem value='all'>Все типы</MenuItem>
+                        <MenuItem value='folder'>Папки</MenuItem>
+                        <MenuItem value='file'>Файлы</MenuItem>
+                    </Select>
+                </Box>
+            </Card>
+
+            {/* Links List */}
+            <Card sx={{ height: 'calc(100vh - 480px)' }}>
+                <AutoSizer>
+                    {({ height, width }) => (
+                        <VirtualList
+                            height={height}
+                            width={width}
+                            rowCount={filteredLinks.length}
+                            rowHeight={100}
+                            rowRenderer={({ index, key, style }) => {
+                                const link = filteredLinks[index];
+                                return (
+                                    <div
+                                        key={key}
+                                        style={style}
+                                    >
+                                        <Paper
+                                            variant='outlined'
+                                            sx={{
+                                                m: 1,
+                                                p: 1.5,
+                                                transition: 'all 0.2s',
+                                                '&:hover': {
+                                                    bgcolor: alpha(
+                                                        '#1976d2',
+                                                        0.05
+                                                    ),
+                                                    borderColor: 'primary.main',
+                                                },
+                                            }}
+                                        >
+                                            <Stack
+                                                direction='row'
+                                                justifyContent='space-between'
+                                                alignItems='center'
+                                                spacing={2}
+                                            >
+                                                <Box
+                                                    sx={{
+                                                        flex: 1,
+                                                        minWidth: 0,
+                                                    }}
+                                                >
+                                                    <Typography
+                                                        variant='caption'
+                                                        color='text.secondary'
+                                                        sx={{
+                                                            textTransform:
+                                                                'uppercase',
+                                                        }}
+                                                    >
+                                                        {link.itemType}
+                                                    </Typography>
+                                                    <Typography
+                                                        variant='body2'
+                                                        sx={{
+                                                            fontWeight: 600,
+                                                            overflow: 'hidden',
+                                                            textOverflow:
+                                                                'ellipsis',
+                                                            whiteSpace:
+                                                                'nowrap',
+                                                        }}
+                                                    >
+                                                        <a
+                                                            href={link.url}
+                                                            target='_blank'
+                                                            rel='noopener noreferrer'
+                                                            style={{
+                                                                color: 'inherit',
+                                                                textDecoration:
+                                                                    'none',
+                                                            }}
+                                                        >
+                                                            {link.itemName}
+                                                        </a>
+                                                    </Typography>
+                                                    <Typography
+                                                        variant='caption'
+                                                        color='text.secondary'
+                                                    >
+                                                        {link.path}
+                                                    </Typography>
+                                                </Box>
+                                                <Select
+                                                    value={link.linkShareRole}
+                                                    size='small'
+                                                    onChange={(e) =>
+                                                        updateLinkRole(
+                                                            link.itemId,
+                                                            link.permissionId,
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    sx={{ minWidth: 140 }}
+                                                >
+                                                    <MenuItem value='reader'>
+                                                        Просмотр
+                                                    </MenuItem>
+                                                    <MenuItem value='commenter'>
+                                                        Комментатор
+                                                    </MenuItem>
+                                                    <MenuItem value='writer'>
+                                                        Редактор
+                                                    </MenuItem>
+                                                </Select>
+                                                <Tooltip title='Удалить доступ'>
+                                                    <IconButton
+                                                        size='small'
+                                                        onClick={() =>
+                                                            removeAccess(
+                                                                link.itemId,
+                                                                link.permissionId
+                                                            )
+                                                        }
+                                                        sx={{
+                                                            color: 'error.main',
+                                                            '&:hover': {
+                                                                bgcolor: alpha(
+                                                                    '#f44336',
+                                                                    0.1
+                                                                ),
+                                                            },
+                                                        }}
+                                                    >
+                                                        <DeleteIcon fontSize='small' />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Stack>
+                                        </Paper>
+                                    </div>
+                                );
+                            }}
+                        />
+                    )}
+                </AutoSizer>
+            </Card>
+        </Box>
+    );
+};
 export const DriveAudit: React.FC = () => {
     const [folderId, setFolderId] = useState('');
     const [scanning, setScanning] = useState(false);
@@ -145,6 +737,9 @@ export const DriveAudit: React.FC = () => {
 
     const { setCurrentPage } = useGlobalContext();
     const logBoxRef = useRef<HTMLPreElement>(null);
+    const [activeTab, setActiveTab] = useState<'employees' | 'links'>(
+        'employees'
+    );
 
     const filteredLinks = useMemo(() => {
         if (!result) return [];
@@ -667,70 +1262,14 @@ export const DriveAudit: React.FC = () => {
                                         },
                                     }}
                                 />
-                                <Tooltip title='Выбрать сохранённую папку'>
-                                    <IconButton
-                                        onClick={() =>
-                                            setShowFoldersDialog(true)
-                                        }
-                                        disabled={scanning}
-                                        sx={{
-                                            bgcolor: alpha('#1976d2', 0.1),
-                                            '&:hover': {
-                                                bgcolor: alpha('#1976d2', 0.2),
-                                            },
-                                        }}
-                                    >
-                                        <Badge
-                                            badgeContent={savedFolders.length}
-                                            color='primary'
-                                        >
-                                            <FolderOpenIcon />
-                                        </Badge>
-                                    </IconButton>
-                                </Tooltip>
-
-                                {folderId.trim() === '' ? (
-                                    <Tooltip title='Сохранить текущую папку (введите ID)'>
-                                        <span>
-                                            <IconButton disabled>
-                                                <BookmarkBorderIcon />
-                                            </IconButton>
-                                        </span>
-                                    </Tooltip>
-                                ) : savedFolders.some(
-                                      (f) => f.id === folderId.trim()
-                                  ) ? (
-                                    <Tooltip title='Папка уже сохранена'>
-                                        <IconButton
-                                            disabled
-                                            sx={{ color: 'success.main' }}
-                                        >
-                                            <CheckCircleIcon />
-                                        </IconButton>
-                                    </Tooltip>
-                                ) : (
-                                    <Tooltip title='Сохранить текущую папку'>
-                                        <IconButton
-                                            onClick={() =>
-                                                setShowSaveDialog(true)
-                                            }
-                                            disabled={
-                                                scanning || Boolean(idError)
-                                            }
-                                            sx={{
-                                                bgcolor: alpha('#1976d2', 0.1),
-                                                '&:hover': {
-                                                    bgcolor: alpha(
-                                                        '#1976d2',
-                                                        0.2
-                                                    ),
-                                                },
-                                            }}
-                                        >
-                                            <BookmarkAddIcon />
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <FolderSelector
+                                    folderId={folderId}
+                                    isScanning={scanning}
+                                    hasIdError={Boolean(idError)}
+                                    savedFolders={savedFolders}
+                                    onFolderSelect={setFolderId}
+                                    onFoldersUpdate={loadSavedFolders}
+                                />
                             </Box>
                         </Box>
 
@@ -758,30 +1297,19 @@ export const DriveAudit: React.FC = () => {
                                     : 'Запустить аудит'}
                             </Button>
 
+                            <LogDrawer
+                                logs={logs}
+                                isOpen={drawerOpen}
+                                onOpen={() => {
+                                    setDrawerOpen(true);
+                                    setNewLogsCount(0);
+                                }}
+                                onClose={() => setDrawerOpen(false)}
+                                newLogsCount={newLogsCount}
+                            />
+
                             {scanning && (
                                 <>
-                                    <Tooltip title='Открыть логи'>
-                                        <IconButton
-                                            onClick={handleOpenDrawer}
-                                            sx={{
-                                                bgcolor: alpha('#1976d2', 0.1),
-                                                '&:hover': {
-                                                    bgcolor: alpha(
-                                                        '#1976d2',
-                                                        0.2
-                                                    ),
-                                                },
-                                            }}
-                                        >
-                                            <Badge
-                                                badgeContent={newLogsCount}
-                                                color='error'
-                                            >
-                                                <TerminalIcon />
-                                            </Badge>
-                                        </IconButton>
-                                    </Tooltip>
-
                                     <Button
                                         variant='outlined'
                                         color='error'
@@ -904,190 +1432,6 @@ export const DriveAudit: React.FC = () => {
                             </Card>
                         )}
                     </Card>
-
-                    {/* Dialogs */}
-                    <Dialog
-                        open={showSaveDialog}
-                        onClose={() => setShowSaveDialog(false)}
-                        maxWidth='sm'
-                        fullWidth
-                    >
-                        <DialogTitle sx={{ fontWeight: 600 }}>
-                            Сохранить папку
-                        </DialogTitle>
-                        <DialogContent>
-                            <TextField
-                                autoFocus
-                                fullWidth
-                                label='Название'
-                                placeholder='НИЦ Энерго'
-                                value={folderName}
-                                onChange={(e) => setFolderName(e.target.value)}
-                                sx={{ mt: 2 }}
-                            />
-                            <Typography
-                                variant='caption'
-                                sx={{
-                                    display: 'block',
-                                    mt: 1.5,
-                                    color: 'text.secondary',
-                                    fontFamily: 'monospace',
-                                }}
-                            >
-                                ID: {folderId}
-                            </Typography>
-                        </DialogContent>
-                        <DialogActions sx={{ p: 3, pt: 2 }}>
-                            <Button
-                                onClick={() => setShowSaveDialog(false)}
-                                sx={{ textTransform: 'none' }}
-                            >
-                                Отмена
-                            </Button>
-                            <Button
-                                onClick={handleSaveFolder}
-                                variant='contained'
-                                disabled={!folderName.trim()}
-                                sx={{ textTransform: 'none', fontWeight: 600 }}
-                            >
-                                Сохранить
-                            </Button>
-                        </DialogActions>
-                    </Dialog>
-
-                    <Dialog
-                        open={showFoldersDialog}
-                        onClose={() => setShowFoldersDialog(false)}
-                        maxWidth='sm'
-                        fullWidth
-                    >
-                        <DialogTitle sx={{ fontWeight: 600 }}>
-                            Сохранённые папки
-                        </DialogTitle>
-                        <DialogContent sx={{ p: 0 }}>
-                            {savedFolders.length === 0 ? (
-                                <Box sx={{ p: 4, textAlign: 'center' }}>
-                                    <Typography color='text.secondary'>
-                                        Нет сохранённых папок
-                                    </Typography>
-                                </Box>
-                            ) : (
-                                <List>
-                                    {savedFolders.map((folder, idx) => (
-                                        <Box key={folder.id}>
-                                            <ListItem
-                                                disablePadding
-                                                secondaryAction={
-                                                    <IconButton
-                                                        edge='end'
-                                                        onClick={(e) =>
-                                                            handleRemoveFolder(
-                                                                folder.id,
-                                                                e
-                                                            )
-                                                        }
-                                                        sx={{
-                                                            color: 'error.main',
-                                                        }}
-                                                    >
-                                                        <DeleteOutlineIcon />
-                                                    </IconButton>
-                                                }
-                                            >
-                                                <ListItemButton
-                                                    onClick={() =>
-                                                        handleSelectFolder(
-                                                            folder
-                                                        )
-                                                    }
-                                                    sx={{
-                                                        '&:hover': {
-                                                            bgcolor: alpha(
-                                                                '#1976d2',
-                                                                0.08
-                                                            ),
-                                                        },
-                                                    }}
-                                                >
-                                                    <ListItemText
-                                                        primary={
-                                                            <Typography
-                                                                sx={{
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                {folder.name}
-                                                            </Typography>
-                                                        }
-                                                        secondary={
-                                                            <Typography
-                                                                component='span'
-                                                                variant='caption'
-                                                                sx={{
-                                                                    fontFamily:
-                                                                        'monospace',
-                                                                    display:
-                                                                        'block',
-                                                                    mt: 0.5,
-                                                                }}
-                                                            >
-                                                                {folder.id}
-                                                            </Typography>
-                                                        }
-                                                    />
-                                                </ListItemButton>
-                                            </ListItem>
-                                            {idx < savedFolders.length - 1 && (
-                                                <Divider />
-                                            )}
-                                        </Box>
-                                    ))}
-                                </List>
-                            )}
-                        </DialogContent>
-                        <DialogActions sx={{ p: 3, pt: 2 }}>
-                            <Button
-                                onClick={() => setShowFoldersDialog(false)}
-                                sx={{ textTransform: 'none' }}
-                            >
-                                Закрыть
-                            </Button>
-                        </DialogActions>
-                    </Dialog>
-
-                    {/* Logs Drawer */}
-                    <Drawer
-                        anchor='right'
-                        open={drawerOpen}
-                        onClose={() => setDrawerOpen(false)}
-                    >
-                        <Box sx={{ width: 600, p: 3 }}>
-                            <Typography
-                                variant='h6'
-                                sx={{ mb: 2, fontWeight: 600 }}
-                            >
-                                Лог аудита
-                            </Typography>
-                            <Box
-                                component='pre'
-                                ref={logBoxRef}
-                                sx={{
-                                    bgcolor: '#1e1e1e',
-                                    color: '#d4d4d4',
-                                    p: 2,
-                                    borderRadius: 1,
-                                    height: 'calc(100vh - 120px)',
-                                    overflow: 'auto',
-                                    fontFamily: 'monospace',
-                                    fontSize: 13,
-                                    lineHeight: 1.5,
-                                    m: 0,
-                                }}
-                            >
-                                {logs.join('\n')}
-                            </Box>
-                        </Box>
-                    </Drawer>
                 </Container>
             </Box>
         );
@@ -1101,8 +1445,6 @@ export const DriveAudit: React.FC = () => {
                 background: (theme) =>
                     `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
                 p: 3,
-                display: 'flex',
-                flexDirection: 'column',
             }}
         >
             {/* Header */}
@@ -1141,41 +1483,14 @@ export const DriveAudit: React.FC = () => {
                     <Button
                         variant='outlined'
                         startIcon={<DescriptionIcon />}
-                        onClick={exportAll}
+                        onClick={
+                            activeTab === 'employees' ? exportAll : exportLinks
+                        }
                         sx={{ textTransform: 'none', fontWeight: 600 }}
                     >
-                        Экспорт всех
+                        Экспорт{' '}
+                        {activeTab === 'employees' ? 'сотрудников' : 'ссылок'}
                     </Button>
-                    {viewMode === 'links' && (
-                        <Button
-                            variant='outlined'
-                            startIcon={<DescriptionIcon />}
-                            onClick={exportLinks}
-                            sx={{ textTransform: 'none', fontWeight: 600 }}
-                        >
-                            Экспорт ссылок
-                        </Button>
-                    )}
-                    {logs.length > 0 && (
-                        <Tooltip title='Открыть логи'>
-                            <IconButton
-                                onClick={handleOpenDrawer}
-                                sx={{
-                                    bgcolor: alpha('#1976d2', 0.1),
-                                    '&:hover': {
-                                        bgcolor: alpha('#1976d2', 0.2),
-                                    },
-                                }}
-                            >
-                                <Badge
-                                    badgeContent={newLogsCount}
-                                    color='error'
-                                >
-                                    <TerminalIcon />
-                                </Badge>
-                            </IconButton>
-                        </Tooltip>
-                    )}
                 </Box>
             </Box>
 
@@ -1194,6 +1509,7 @@ export const DriveAudit: React.FC = () => {
                         textAlign: 'center',
                         border: 1,
                         borderColor: 'divider',
+                        cursor: 'pointer',
                         transition: 'all 0.2s',
                         '&:hover': {
                             borderColor: 'primary.main',
@@ -1202,6 +1518,7 @@ export const DriveAudit: React.FC = () => {
                                 `0 4px 20px ${alpha(theme.palette.primary.main, 0.15)}`,
                         },
                     }}
+                    onClick={() => setActiveTab('employees')}
                 >
                     <Box
                         sx={{
@@ -1237,6 +1554,7 @@ export const DriveAudit: React.FC = () => {
                         textAlign: 'center',
                         border: 1,
                         borderColor: 'divider',
+                        cursor: 'pointer',
                         transition: 'all 0.2s',
                         '&:hover': {
                             borderColor: 'primary.main',
@@ -1245,6 +1563,7 @@ export const DriveAudit: React.FC = () => {
                                 `0 4px 20px ${alpha(theme.palette.primary.main, 0.15)}`,
                         },
                     }}
+                    onClick={() => setActiveTab('links')}
                 >
                     <Box
                         sx={{
@@ -1280,13 +1599,6 @@ export const DriveAudit: React.FC = () => {
                         textAlign: 'center',
                         border: 1,
                         borderColor: 'divider',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                            borderColor: 'primary.main',
-                            transform: 'translateY(-2px)',
-                            boxShadow: (theme) =>
-                                `0 4px 20px ${alpha(theme.palette.primary.main, 0.15)}`,
-                        },
                     }}
                 >
                     <Box
@@ -1318,697 +1630,62 @@ export const DriveAudit: React.FC = () => {
                 </Card>
             </Box>
 
-            {/* Filters */}
-            <Card sx={{ p: 2, mb: 2 }}>
-                <Box
+            {/* Tabs */}
+            <Card sx={{ mb: 2 }}>
+                <Tabs
+                    value={activeTab}
+                    onChange={(_, v) => setActiveTab(v)}
                     sx={{
-                        display: 'flex',
-                        gap: 2,
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
+                        borderBottom: 1,
+                        borderColor: 'divider',
+                        '& .MuiTab-root': {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: 16,
+                        },
                     }}
                 >
-                    <TextField
-                        placeholder='Поиск по email или имени...'
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        size='small'
-                        sx={{ flex: 1, minWidth: 200 }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position='start'>
-                                    <SearchIcon />
-                                </InputAdornment>
-                            ),
-                        }}
+                    <Tab
+                        label={`Сотрудники (${result.employees.length})`}
+                        value='employees'
                     />
-                    <Select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        size='small'
-                        sx={{ minWidth: 150 }}
-                    >
-                        <MenuItem value='all'>Все роли</MenuItem>
-                        <MenuItem value='owner'>Владелец</MenuItem>
-                        <MenuItem value='writer'>Редактор</MenuItem>
-                        <MenuItem value='commenter'>Комментатор</MenuItem>
-                        <MenuItem value='reader'>Просмотр</MenuItem>
-                    </Select>
-                    <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as any)}
-                        size='small'
-                        sx={{ minWidth: 180 }}
-                    >
-                        <MenuItem value='accesses'>По количеству</MenuItem>
-                        <MenuItem value='name'>По имени</MenuItem>
-                    </Select>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                            variant={
-                                viewMode === 'employees'
-                                    ? 'contained'
-                                    : 'outlined'
-                            }
-                            onClick={() => setViewMode('employees')}
-                            sx={{ textTransform: 'none' }}
-                        >
-                            Сотрудники
-                        </Button>
-                        <Button
-                            variant={
-                                viewMode === 'links' ? 'contained' : 'outlined'
-                            }
-                            onClick={() => setViewMode('links')}
-                            sx={{ textTransform: 'none' }}
-                        >
-                            Ссылки
-                        </Button>
-                    </Box>
-                </Box>
+                    <Tab
+                        label={`Ссылки (${result.linkAccesses.length})`}
+                        value='links'
+                    />
+                </Tabs>
             </Card>
 
-            {/* Main Content */}
-            <Box sx={{ flex: 1, display: 'flex', gap: 2, overflow: 'hidden' }}>
-                {/* Employees List */}
-                <Card
-                    sx={{
-                        flex: '0 0 60%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}
-                >
-                    <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-                        <Typography
-                            variant='h6'
-                            sx={{ fontWeight: 600 }}
-                        >
-                            Сотрудники ({filteredEmployees.length})
-                        </Typography>
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                        <AutoSizer>
-                            {({ height, width }) => (
-                                <VirtualList
-                                    height={height}
-                                    width={width}
-                                    rowCount={filteredEmployees.length}
-                                    rowHeight={80}
-                                    rowRenderer={({ index, key, style }) => {
-                                        const emp = filteredEmployees[index];
-                                        const isSelected =
-                                            selectedEmployee === emp.email;
-                                        return (
-                                            <div
-                                                key={key}
-                                                style={style}
-                                            >
-                                                <Paper
-                                                    variant='outlined'
-                                                    sx={{
-                                                        m: 1,
-                                                        p: 2,
-                                                        cursor: 'pointer',
-                                                        bgcolor: isSelected
-                                                            ? alpha(
-                                                                  '#1976d2',
-                                                                  0.1
-                                                              )
-                                                            : 'background.paper',
-                                                        borderColor: isSelected
-                                                            ? 'primary.main'
-                                                            : 'divider',
-                                                        transition: 'all 0.2s',
-                                                        '&:hover': {
-                                                            bgcolor: alpha(
-                                                                '#1976d2',
-                                                                0.05
-                                                            ),
-                                                            borderColor:
-                                                                'primary.main',
-                                                        },
-                                                    }}
-                                                    onClick={() =>
-                                                        setSelectedEmployee(
-                                                            emp.email
-                                                        )
-                                                    }
-                                                >
-                                                    <Stack
-                                                        direction='row'
-                                                        alignItems='center'
-                                                        spacing={2}
-                                                    >
-                                                        <Box
-                                                            sx={{
-                                                                flex: 1,
-                                                                minWidth: 0,
-                                                            }}
-                                                        >
-                                                            <Typography
-                                                                sx={{
-                                                                    fontWeight: 600,
-                                                                    overflow:
-                                                                        'hidden',
-                                                                    textOverflow:
-                                                                        'ellipsis',
-                                                                    whiteSpace:
-                                                                        'nowrap',
-                                                                }}
-                                                            >
-                                                                {
-                                                                    emp.displayName
-                                                                }
-                                                            </Typography>
-                                                            <Typography
-                                                                variant='body2'
-                                                                color='text.secondary'
-                                                                sx={{
-                                                                    overflow:
-                                                                        'hidden',
-                                                                    textOverflow:
-                                                                        'ellipsis',
-                                                                    whiteSpace:
-                                                                        'nowrap',
-                                                                    fontFamily:
-                                                                        'monospace',
-                                                                    fontSize: 12,
-                                                                }}
-                                                            >
-                                                                {emp.email}
-                                                            </Typography>
-                                                        </Box>
-                                                        <Chip
-                                                            label={
-                                                                emp.totalAccess
-                                                            }
-                                                            color='primary'
-                                                            size='small'
-                                                            sx={{
-                                                                fontWeight: 600,
-                                                            }}
-                                                        />
-                                                        <Stack
-                                                            direction='row'
-                                                            spacing={0.5}
-                                                        >
-                                                            {Object.entries(
-                                                                emp.roles
-                                                            ).map(([r, c]) => (
-                                                                <Chip
-                                                                    key={r}
-                                                                    label={`${roleToRu(r)}: ${c}`}
-                                                                    size='small'
-                                                                    variant='outlined'
-                                                                />
-                                                            ))}
-                                                        </Stack>
-                                                        <Tooltip title='Экспорт'>
-                                                            <IconButton
-                                                                size='small'
-                                                                onClick={(
-                                                                    e
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    exportEmployee(
-                                                                        emp
-                                                                    );
-                                                                }}
-                                                                sx={{
-                                                                    '&:hover': {
-                                                                        bgcolor:
-                                                                            alpha(
-                                                                                '#1976d2',
-                                                                                0.1
-                                                                            ),
-                                                                    },
-                                                                }}
-                                                            >
-                                                                <DescriptionIcon fontSize='small' />
-                                                            </IconButton>
-                                                        </Tooltip>
-                                                    </Stack>
-                                                </Paper>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                            )}
-                        </AutoSizer>
-                    </Box>
-                </Card>
-
-                {/* Details Panel */}
-                <Card
-                    sx={{
-                        flex: '0 0 40%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                    }}
-                >
-                    {viewMode === 'employees' ? (
-                        selectedEmpData ? (
-                            <>
-                                <Box
-                                    sx={{
-                                        p: 2,
-                                        borderBottom: 1,
-                                        borderColor: 'divider',
-                                    }}
-                                >
-                                    <Typography
-                                        variant='h6'
-                                        sx={{ fontWeight: 600 }}
-                                    >
-                                        {selectedEmpData.displayName}
-                                    </Typography>
-                                    <Typography
-                                        variant='body2'
-                                        color='text.secondary'
-                                        sx={{
-                                            fontFamily: 'monospace',
-                                            fontSize: 12,
-                                            mt: 0.5,
-                                        }}
-                                    >
-                                        {selectedEmpData.email}
-                                    </Typography>
-                                    <Chip
-                                        label={`${selectedEmpData.totalAccess} доступов`}
-                                        size='small'
-                                        color='primary'
-                                        sx={{ mt: 1, fontWeight: 600 }}
-                                    />
-                                </Box>
-                                <Box sx={{ flex: 1, overflow: 'auto' }}>
-                                    <AutoSizer>
-                                        {({ height, width }) => (
-                                            <VirtualList
-                                                height={height}
-                                                width={width}
-                                                rowCount={
-                                                    selectedEmpData.accesses
-                                                        .length
-                                                }
-                                                rowHeight={100}
-                                                rowRenderer={({
-                                                    index,
-                                                    key,
-                                                    style,
-                                                }) => {
-                                                    const acc =
-                                                        selectedEmpData
-                                                            .accesses[index];
-                                                    return (
-                                                        <div
-                                                            key={key}
-                                                            style={style}
-                                                        >
-                                                            <Paper
-                                                                variant='outlined'
-                                                                sx={{
-                                                                    m: 1,
-                                                                    p: 1.5,
-                                                                    transition:
-                                                                        'all 0.2s',
-                                                                    '&:hover': {
-                                                                        bgcolor:
-                                                                            alpha(
-                                                                                '#1976d2',
-                                                                                0.05
-                                                                            ),
-                                                                        borderColor:
-                                                                            'primary.main',
-                                                                    },
-                                                                }}
-                                                            >
-                                                                <Stack
-                                                                    spacing={
-                                                                        0.5
-                                                                    }
-                                                                >
-                                                                    <Typography
-                                                                        variant='caption'
-                                                                        color='text.secondary'
-                                                                        sx={{
-                                                                            textTransform:
-                                                                                'uppercase',
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            acc.itemType
-                                                                        }
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        variant='body2'
-                                                                        sx={{
-                                                                            fontWeight: 600,
-                                                                            overflow:
-                                                                                'hidden',
-                                                                            textOverflow:
-                                                                                'ellipsis',
-                                                                            whiteSpace:
-                                                                                'nowrap',
-                                                                        }}
-                                                                    >
-                                                                        <a
-                                                                            href={
-                                                                                acc.url
-                                                                            }
-                                                                            target='_blank'
-                                                                            rel='noopener noreferrer'
-                                                                            style={{
-                                                                                color: 'inherit',
-                                                                                textDecoration:
-                                                                                    'none',
-                                                                            }}
-                                                                        >
-                                                                            {
-                                                                                acc.itemName
-                                                                            }
-                                                                        </a>
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        variant='caption'
-                                                                        color='text.secondary'
-                                                                    >
-                                                                        {roleToRu(
-                                                                            acc.role
-                                                                        )}{' '}
-                                                                        •{' '}
-                                                                        {
-                                                                            acc.path
-                                                                        }
-                                                                    </Typography>
-                                                                </Stack>
-                                                            </Paper>
-                                                        </div>
-                                                    );
-                                                }}
-                                            />
-                                        )}
-                                    </AutoSizer>
-                                </Box>
-                            </>
-                        ) : (
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    height: '100%',
-                                    p: 4,
-                                    textAlign: 'center',
-                                }}
-                            >
-                                <Typography color='text.secondary'>
-                                    Выберите сотрудника для просмотра доступов
-                                </Typography>
-                            </Box>
-                        )
-                    ) : (
-                        <>
-                            <Box
-                                sx={{
-                                    p: 2,
-                                    borderBottom: 1,
-                                    borderColor: 'divider',
-                                }}
-                            >
-                                <Typography
-                                    variant='h6'
-                                    sx={{ fontWeight: 600, mb: 2 }}
-                                >
-                                    Доступы по ссылке ({filteredLinks.length})
-                                </Typography>
-                                <Stack spacing={1.5}>
-                                    <TextField
-                                        placeholder='Поиск по пути или названию...'
-                                        value={linkPathSearch}
-                                        onChange={(e) =>
-                                            setLinkPathSearch(e.target.value)
-                                        }
-                                        size='small'
-                                        fullWidth
-                                        InputProps={{
-                                            startAdornment: (
-                                                <InputAdornment position='start'>
-                                                    <SearchIcon />
-                                                </InputAdornment>
-                                            ),
-                                        }}
-                                    />
-                                    <Stack
-                                        direction='row'
-                                        spacing={1}
-                                    >
-                                        <Select
-                                            value={linkRoleFilter}
-                                            onChange={(e) =>
-                                                setLinkRoleFilter(
-                                                    e.target.value
-                                                )
-                                            }
-                                            size='small'
-                                            sx={{ flex: 1 }}
-                                        >
-                                            <MenuItem value='all'>
-                                                Все доступы
-                                            </MenuItem>
-                                            <MenuItem value='reader'>
-                                                Просмотр
-                                            </MenuItem>
-                                            <MenuItem value='commenter'>
-                                                Комментатор
-                                            </MenuItem>
-                                            <MenuItem value='writer'>
-                                                Редактор
-                                            </MenuItem>
-                                        </Select>
-                                        <Select
-                                            value={linkTypeFilter}
-                                            onChange={(e) =>
-                                                setLinkTypeFilter(
-                                                    e.target.value
-                                                )
-                                            }
-                                            size='small'
-                                            sx={{ flex: 1 }}
-                                        >
-                                            <MenuItem value='all'>
-                                                Все типы
-                                            </MenuItem>
-                                            <MenuItem value='folder'>
-                                                Папки
-                                            </MenuItem>
-                                            <MenuItem value='file'>
-                                                Файлы
-                                            </MenuItem>
-                                        </Select>
-                                    </Stack>
-                                </Stack>
-                            </Box>
-                            <Box sx={{ flex: 1 }}>
-                                <AutoSizer>
-                                    {({ height, width }) => (
-                                        <VirtualList
-                                            height={height}
-                                            width={width}
-                                            rowCount={filteredLinks.length}
-                                            rowHeight={120}
-                                            rowRenderer={({
-                                                index,
-                                                key,
-                                                style,
-                                            }) => {
-                                                const link =
-                                                    filteredLinks[index];
-                                                return (
-                                                    <div
-                                                        key={key}
-                                                        style={style}
-                                                    >
-                                                        <Paper
-                                                            variant='outlined'
-                                                            sx={{
-                                                                m: 1,
-                                                                p: 1.5,
-                                                                transition:
-                                                                    'all 0.2s',
-                                                                '&:hover': {
-                                                                    bgcolor:
-                                                                        alpha(
-                                                                            '#1976d2',
-                                                                            0.05
-                                                                        ),
-                                                                    borderColor:
-                                                                        'primary.main',
-                                                                },
-                                                            }}
-                                                        >
-                                                            <Stack
-                                                                direction='row'
-                                                                justifyContent='space-between'
-                                                                alignItems='center'
-                                                                spacing={1}
-                                                            >
-                                                                <Box
-                                                                    sx={{
-                                                                        flex: 1,
-                                                                        minWidth: 0,
-                                                                    }}
-                                                                >
-                                                                    <Typography
-                                                                        variant='caption'
-                                                                        color='text.secondary'
-                                                                        sx={{
-                                                                            textTransform:
-                                                                                'uppercase',
-                                                                        }}
-                                                                    >
-                                                                        {
-                                                                            link.itemType
-                                                                        }
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        variant='body2'
-                                                                        sx={{
-                                                                            fontWeight: 600,
-                                                                            overflow:
-                                                                                'hidden',
-                                                                            textOverflow:
-                                                                                'ellipsis',
-                                                                            whiteSpace:
-                                                                                'nowrap',
-                                                                        }}
-                                                                    >
-                                                                        <a
-                                                                            href={
-                                                                                link.url
-                                                                            }
-                                                                            target='_blank'
-                                                                            rel='noopener noreferrer'
-                                                                            style={{
-                                                                                color: 'inherit',
-                                                                                textDecoration:
-                                                                                    'none',
-                                                                            }}
-                                                                        >
-                                                                            {
-                                                                                link.itemName
-                                                                            }
-                                                                        </a>
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        variant='caption'
-                                                                        color='text.secondary'
-                                                                    >
-                                                                        {
-                                                                            link.path
-                                                                        }
-                                                                    </Typography>
-                                                                </Box>
-                                                                <Select
-                                                                    value={
-                                                                        link.linkShareRole
-                                                                    }
-                                                                    size='small'
-                                                                    onChange={(
-                                                                        e
-                                                                    ) =>
-                                                                        updateLinkRole(
-                                                                            link.itemId,
-                                                                            link.permissionId,
-                                                                            e
-                                                                                .target
-                                                                                .value
-                                                                        )
-                                                                    }
-                                                                    sx={{
-                                                                        minWidth: 120,
-                                                                    }}
-                                                                >
-                                                                    <MenuItem value='reader'>
-                                                                        Просмотр
-                                                                    </MenuItem>
-                                                                    <MenuItem value='commenter'>
-                                                                        Комментатор
-                                                                    </MenuItem>
-                                                                    <MenuItem value='writer'>
-                                                                        Редактор
-                                                                    </MenuItem>
-                                                                </Select>
-                                                                <Tooltip title='Удалить доступ'>
-                                                                    <IconButton
-                                                                        size='small'
-                                                                        onClick={() =>
-                                                                            removeAccess(
-                                                                                link.itemId,
-                                                                                link.permissionId
-                                                                            )
-                                                                        }
-                                                                        sx={{
-                                                                            color: 'error.main',
-                                                                            '&:hover':
-                                                                                {
-                                                                                    bgcolor:
-                                                                                        alpha(
-                                                                                            '#f44336',
-                                                                                            0.1
-                                                                                        ),
-                                                                                },
-                                                                        }}
-                                                                    >
-                                                                        <DeleteIcon fontSize='small' />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                            </Stack>
-                                                        </Paper>
-                                                    </div>
-                                                );
-                                            }}
-                                        />
-                                    )}
-                                </AutoSizer>
-                            </Box>
-                        </>
-                    )}
-                </Card>
-            </Box>
-
-            {/* Logs Drawer */}
-            <Drawer
-                anchor='right'
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-            >
-                <Box sx={{ width: 600, p: 3 }}>
-                    <Typography
-                        variant='h6'
-                        sx={{ mb: 2, fontWeight: 600 }}
-                    >
-                        Лог аудита
-                    </Typography>
-                    <Box
-                        component='pre'
-                        ref={logBoxRef}
-                        sx={{
-                            bgcolor: '#1e1e1e',
-                            color: '#d4d4d4',
-                            p: 2,
-                            borderRadius: 1,
-                            height: 'calc(100vh - 120px)',
-                            overflow: 'auto',
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                            m: 0,
-                        }}
-                    >
-                        {logs.join('\n')}
-                    </Box>
-                </Box>
-            </Drawer>
+            {/* Tab Content */}
+            {activeTab === 'employees' ? (
+                <EmployeesView
+                    result={result}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    roleFilter={roleFilter}
+                    setRoleFilter={setRoleFilter}
+                    sortBy={sortBy}
+                    setSortBy={setSortBy}
+                    selectedEmployee={selectedEmployee}
+                    setSelectedEmployee={setSelectedEmployee}
+                    exportEmployee={exportEmployee}
+                    roleToRu={roleToRu}
+                    filteredEmployees={filteredEmployees}
+                    selectedEmpData={selectedEmpData}
+                />
+            ) : (
+                <LinksView
+                    filteredLinks={filteredLinks}
+                    linkPathSearch={linkPathSearch}
+                    setLinkPathSearch={setLinkPathSearch}
+                    linkRoleFilter={linkRoleFilter}
+                    setLinkRoleFilter={setLinkRoleFilter}
+                    linkTypeFilter={linkTypeFilter}
+                    setLinkTypeFilter={setLinkTypeFilter}
+                    updateLinkRole={updateLinkRole}
+                    removeAccess={removeAccess}
+                />
+            )}
         </Box>
     );
 };

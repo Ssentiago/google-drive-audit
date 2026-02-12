@@ -12,6 +12,8 @@ use tauri::Emitter;
 use tokio::sync::{broadcast, mpsc, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 
+use google_drive3::api::Permission as G_Permission;
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
@@ -550,11 +552,18 @@ pub async fn export_employee_data(
         chrono::Utc::now().format("%Y-%m-%d")
     );
 
-    // Создаём spreadsheet с явным названием листа
+    let total_rows = rows.len() as i32;
+    let row_count = (total_rows + 100).max(2000);
+
+    let mut grid_props = google_sheets4::api::GridProperties::default();
+    grid_props.row_count = Some(row_count);
+    grid_props.column_count = Some(26);
+
     let mut sheet = google_sheets4::api::Sheet::default();
     let mut sheet_props = google_sheets4::api::SheetProperties::default();
     sheet_props.title = Some("Данные".to_string());
     sheet_props.sheet_id = Some(0);
+    sheet_props.grid_properties = Some(grid_props);
     sheet.properties = Some(sheet_props);
 
     let mut spreadsheet = google_sheets4::api::Spreadsheet::default();
@@ -608,6 +617,30 @@ pub async fn export_employee_data(
 
         start_row += chunk.len();
     }
+
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
 
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
@@ -797,6 +830,30 @@ pub async fn export_all_employees(
         }
     }
 
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
+
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
 }
@@ -882,6 +939,30 @@ pub async fn export_links_data(
 
         start_row += chunk.len();
     }
+
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
 
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
