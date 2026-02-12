@@ -500,7 +500,6 @@ const DriveScan = () => {
                                 />
                             </Tooltip>
                         </Box>
-
                         <Box sx={{ display: 'flex', gap: 1 }}>
                             <TextField
                                 fullWidth
@@ -603,25 +602,6 @@ const DriveScan = () => {
 
                         {isScanning && (
                             <>
-                                <Tooltip title='Открыть логи'>
-                                    <IconButton
-                                        onClick={handleOpenDrawer}
-                                        sx={{
-                                            bgcolor: alpha('#1976d2', 0.1),
-                                            '&:hover': {
-                                                bgcolor: alpha('#1976d2', 0.2),
-                                            },
-                                        }}
-                                    >
-                                        <Badge
-                                            badgeContent={newLogsCount}
-                                            color='error'
-                                        >
-                                            <TerminalIcon />
-                                        </Badge>
-                                    </IconButton>
-                                </Tooltip>
-
                                 <Button
                                     variant='outlined'
                                     color='error'
@@ -744,6 +724,48 @@ const DriveScan = () => {
                     )}
 
                     {/* Results Actions */}
+                    {!isScanning &&
+                        elapsedSeconds > 0 &&
+                        result.suspiciousAccesses.length === 0 && (
+                            <Card
+                                sx={{
+                                    p: 4,
+                                    mb: 3,
+                                    textAlign: 'center',
+                                    bgcolor: alpha('#4caf50', 0.05),
+                                    border: 1,
+                                    borderColor: alpha('#4caf50', 0.3),
+                                }}
+                            >
+                                <CheckCircleIcon
+                                    sx={{
+                                        fontSize: 64,
+                                        color: 'success.main',
+                                        mb: 2,
+                                    }}
+                                />
+                                <Typography
+                                    variant='h6'
+                                    sx={{
+                                        fontWeight: 600,
+                                        mb: 1,
+                                        color: 'success.main',
+                                    }}
+                                >
+                                    Подозрительных доступов не обнаружено
+                                </Typography>
+                                <Typography
+                                    variant='body2'
+                                    sx={{
+                                        color: 'text.secondary',
+                                    }}
+                                >
+                                    Сканирование завершено. Все файлы в
+                                    выбранной папке в безопасности.
+                                </Typography>
+                            </Card>
+                        )}
+
                     {result.suspiciousAccesses.length > 0 && (
                         <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                             <Button
