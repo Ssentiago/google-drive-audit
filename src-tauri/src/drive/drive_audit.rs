@@ -552,11 +552,18 @@ pub async fn export_employee_data(
         chrono::Utc::now().format("%Y-%m-%d")
     );
 
-    // Создаём spreadsheet с явным названием листа
+    let total_rows = rows.len() as i32;
+    let row_count = (total_rows + 100).max(2000);
+
+    let mut grid_props = google_sheets4::api::GridProperties::default();
+    grid_props.row_count = Some(row_count);
+    grid_props.column_count = Some(26);
+
     let mut sheet = google_sheets4::api::Sheet::default();
     let mut sheet_props = google_sheets4::api::SheetProperties::default();
     sheet_props.title = Some("Данные".to_string());
     sheet_props.sheet_id = Some(0);
+    sheet_props.grid_properties = Some(grid_props);
     sheet.properties = Some(sheet_props);
 
     let mut spreadsheet = google_sheets4::api::Spreadsheet::default();
