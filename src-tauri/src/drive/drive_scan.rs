@@ -40,6 +40,7 @@ pub struct ScanResults {
 
 use google_drive3::api::Permission as G_Permission;
 
+use crate::app_handle_storage::{get_app_handle, get_main_window};
 use crate::drive;
 use crate::drive::custom_property::{delete_custom_property, read_custom_properties};
 use crate::drive::utils::{get_item, list_folder_contents, DriveItem};
@@ -93,6 +94,8 @@ pub struct TreeNode {
     pub has_suspicious_access: bool,
     pub suspicious_count: usize,
     pub path: String,
+    pub total_items_inside: usize,       // всего папок+файлов внутри
+    pub items_with_access_inside: usize, // из них с доступами
 }
 
 static SCAN_RESULTS: OnceCell<RwLock<ScanResults>> = OnceCell::new();
@@ -103,12 +106,18 @@ pub struct DriveScanner {
     results: Arc<RwLock<Vec<Access>>>,
     processed_folders: Arc<RwLock<usize>>,
     processed_files: Arc<RwLock<usize>>,
-    window: tauri::Window,
+    window: tauri::WebviewWindow,
     suspicious_emails: HashSet<String>,
     log_tx: mpsc::UnboundedSender<String>,
     cancel_tx: broadcast::Sender<()>,
     user_email: String,
     undeleted_originals: Arc<RwLock<Vec<UndeletedOriginal>>>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct CheckItemResult {
+    has_access: bool,
+    accesses_count: usize,
 }
 
 impl DriveScanner {
@@ -124,7 +133,7 @@ impl DriveScanner {
 
     pub async fn new(
         app: tauri::AppHandle,
-        window: tauri::Window,
+        window: tauri::WebviewWindow,
         suspicious_emails: &[String],
     ) -> (Self, mpsc::UnboundedReceiver<String>) {
         let (log_tx, log_rx) = mpsc::unbounded_channel();
@@ -185,6 +194,8 @@ impl DriveScanner {
         let results = self.results.read().await.clone();
         let originals = self.undeleted_originals.read().await.clone();
 
+        dbg!(originals.clone());
+
         Ok(ScanResults {
             suspicious_accesses: results,
             undeleted_originals: originals,
@@ -201,6 +212,7 @@ impl DriveScanner {
     ) -> Result<(), String> {
         self.process_folder_inner(folder_id, parent_id, current_path)
             .await
+            .map(|_| ())
     }
 
     fn is_logged_user_an_owner(&self, folder: &DriveItem) -> bool {
@@ -217,12 +229,13 @@ impl DriveScanner {
         folder_id: &'a str,
         parent_id: Option<String>,
         current_path: String,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<(bool, usize), String>> + Send + 'a>> {
         Box::pin(async move {
             let mut cancel_rx = self.cancel_tx.subscribe();
             if cancel_rx.try_recv().is_ok() {
                 return Err("Cancelled".to_string());
             }
+
             self.emit_processing_status(folder_id, "processing");
 
             let folder = get_item(self.app.clone(), folder_id).await?;
@@ -232,7 +245,11 @@ impl DriveScanner {
                 .unwrap_or(&"Без названия".to_string())
                 .clone();
 
-            let mut cancel_rx = self.cancel_tx.subscribe();
+            if (folder_name == "[C] Оборудование IP") {
+                dbg!(folder.clone());
+                dbg!(read_custom_properties(self.app.clone(), &folder_id).await);
+            }
+
             if cancel_rx.try_recv().is_ok() {
                 return Err("Cancelled".to_string());
             }
@@ -254,10 +271,16 @@ impl DriveScanner {
                 has_suspicious_access: false,
                 suspicious_count: 0,
                 path: folder_own_path.clone(),
+                total_items_inside: 0,
+                items_with_access_inside: 0,
             });
 
-            self.check_item(&folder, "Папка", parent_id.as_deref(), &folder_own_path)
+            let folder_check_res = self
+                .check_item(&folder, "Папка", parent_id.as_deref(), &folder_own_path)
                 .await;
+
+            let mut total_items_inside: usize = 0;
+            let mut total_items_with_access_inside: usize = 0;
 
             let full_path_for_children = if current_path.is_empty() {
                 folder_name.clone()
@@ -265,22 +288,25 @@ impl DriveScanner {
                 format!("{} / {}", current_path, folder_name)
             };
 
-            let mut cancel_rx = self.cancel_tx.subscribe();
             if cancel_rx.try_recv().is_ok() {
                 return Err("Cancelled".to_string());
             }
 
             let items = list_folder_contents(self.app.clone(), folder_id).await?;
+
             let files: Vec<_> = items
                 .iter()
                 .filter(|i| i.mime_type.as_deref() != Some("application/vnd.google-apps.folder"))
                 .cloned()
                 .collect();
+
             let subfolders: Vec<_> = items
                 .iter()
                 .filter(|i| i.mime_type.as_deref() == Some("application/vnd.google-apps.folder"))
                 .cloned()
                 .collect();
+
+            total_items_inside = items.len();
 
             self.log(&format!(
                 " └─ Файлов: {}, Подпапок: {}",
@@ -295,6 +321,7 @@ impl DriveScanner {
             }
 
             let mut file_handles = Vec::new();
+
             for file in files {
                 if cancel_rx.try_recv().is_ok() {
                     break;
@@ -310,9 +337,10 @@ impl DriveScanner {
                         .as_ref()
                         .unwrap_or(&"Без названия".to_string())
                         .clone();
+
                     scanner.log(&format!(" 📄 {}", file_name));
 
-                    scanner
+                    let check_result = scanner
                         .check_item(&file, "Файл", Some(&folder_id_str), &path)
                         .await;
 
@@ -320,13 +348,25 @@ impl DriveScanner {
                         let mut count = scanner.processed_files.write().await;
                         *count += 1;
                     }
+
+                    // Возвращаем has_access
+                    check_result.has_access
                 });
 
                 file_handles.push(handle);
             }
 
             for handle in file_handles {
-                let _ = handle.await;
+                match handle.await {
+                    Ok(has_access) => {
+                        if has_access {
+                            total_items_with_access_inside += 1;
+                        }
+                    }
+                    Err(e) => {
+                        self.log(&format!("Ошибка обработки файла: {:?}", e));
+                    }
+                }
             }
 
             let mut subfolder_tasks = Vec::new();
@@ -348,7 +388,6 @@ impl DriveScanner {
                             .process_folder_inner(&subfolder_id, parent_id, path.clone())
                             .await;
 
-                        // Отмечаем завершение
                         scanner.emit_processing_status(&subfolder_id, "done");
 
                         result
@@ -360,7 +399,13 @@ impl DriveScanner {
 
             for task in subfolder_tasks {
                 match task.await {
-                    Ok(Ok(_)) => {}
+                    Ok(Ok((sub_has_suspicious_access, sub_items_with_access))) => {
+                        total_items_with_access_inside += sub_items_with_access;
+
+                        if sub_has_suspicious_access {
+                            total_items_with_access_inside += 1;
+                        }
+                    }
                     Ok(Err(e)) => {
                         self.log(&format!("Ошибка в подпапке: {}", e));
                     }
@@ -370,19 +415,30 @@ impl DriveScanner {
                 }
             }
 
+            self.emit_tree_node(TreeNode {
+                id: folder_id.to_string(),
+                name: folder_name.clone(),
+                item_type: "folder".to_string(),
+                parent_id: parent_id.clone(),
+                has_suspicious_access: folder_check_res.has_access,
+                suspicious_count: folder_check_res.accesses_count,
+                path: folder_own_path.clone(),
+                total_items_inside,
+                items_with_access_inside: total_items_with_access_inside,
+            });
+
             self.emit_processing_status(folder_id, "done");
 
-            Ok(())
+            Ok((folder_check_res.has_access, total_items_with_access_inside))
         })
     }
-
     async fn check_item(
         &self,
         item: &DriveItem,
         item_type: &str,
         parent_id: Option<&str>,
         path: &str,
-    ) {
+    ) -> CheckItemResult {
         let permissions = item.permissions.as_deref().unwrap_or(&[]);
 
         let owners: Vec<String> = item
@@ -406,7 +462,6 @@ impl DriveScanner {
         let item_name = item.name.as_deref().unwrap_or("Без названия");
         let mut new_accesses = Vec::new();
 
-        // Проверяем обычные разрешения, которые удаляются тупо из метаданных
         for perm in permissions {
             if perm.role.as_deref() == Some("owner") {
                 continue;
@@ -452,7 +507,9 @@ impl DriveScanner {
         // Кейс 1: Владелец подозрительный И мы НЕ владельцы
         if let Some(owner) = suspicious_owner {
             if self.suspicious_emails.contains(owner) && !self.is_logged_user_an_owner(&item) {
-                match self.is_item_copied(item_id).await {
+                let is_copied = item.get_property("is_copied").unwrap_or(&String::from(""))
+                    == &"true".to_string();
+                match is_copied {
                     true => {}
                     false => {
                         self.log(&format!(
@@ -517,31 +574,35 @@ impl DriveScanner {
                 }
             }
         }
-        if !new_accesses.is_empty() {
-            self.emit_tree_node(TreeNode {
-                id: item.id.clone().unwrap_or_default(),
-                name: item_name.to_string(),
-                item_type: if item_type == "Папка" {
-                    "folder"
-                } else {
-                    "file"
-                }
-                .to_string(),
-                parent_id: parent_id.map(|s| s.to_string()),
-                has_suspicious_access: true,
-                suspicious_count: new_accesses.len(),
-                path: path.to_string(),
-            });
 
+        self.emit_tree_node(TreeNode {
+            id: item.id.clone().unwrap_or_default(),
+            name: item_name.to_string(),
+            item_type: if item_type == "Папка" {
+                "folder"
+            } else {
+                "file"
+            }
+            .to_string(),
+            parent_id: parent_id.map(|s| s.to_string()),
+            has_suspicious_access: !new_accesses.is_empty(),
+            suspicious_count: new_accesses.len(),
+            path: path.to_string(),
+            total_items_inside: 0,
+            items_with_access_inside: 0,
+        });
+
+        let has_access = !new_accesses.is_empty();
+        let accesses_count = new_accesses.len();
+
+        if has_access {
             let mut results = self.results.write().await;
             results.extend(new_accesses);
         }
-    }
 
-    async fn is_item_copied(&self, folder_id: &str) -> bool {
-        match read_custom_properties(self.app.clone(), folder_id).await {
-            Ok(props) => props.get("is_copied") == Some(&"true".to_string()),
-            Err(_) => false,
+        CheckItemResult {
+            has_access: has_access,
+            accesses_count: accesses_count,
         }
     }
 
@@ -564,11 +625,14 @@ static CANCEL_BROADCAST: OnceCell<broadcast::Sender<()>> = OnceCell::new();
 
 #[tauri::command]
 pub async fn scan_drive(
-    app: tauri::AppHandle,
-    window: tauri::Window,
     folder_id: String,
     suspicious_emails: Vec<String>,
 ) -> Result<ScanResults, String> {
+    let app = get_app_handle();
+    let window = get_main_window();
+
+    dbg!(app);
+
     let start = Instant::now();
 
     let (scanner, mut log_rx) =
@@ -672,10 +736,9 @@ pub async fn load_scan_cache() -> Result<ScanResults, String> {
 }
 
 #[tauri::command]
-pub async fn create_and_open_spreadsheet(
-    window: tauri::Window,
-    app: tauri::AppHandle,
-) -> Result<String, String> {
+pub async fn create_and_open_spreadsheet() -> Result<String, String> {
+    let app = get_app_handle();
+    let window = get_main_window();
     let hub = get_sheets_hub(&app).await?;
 
     let results_lock = SCAN_RESULTS.get_or_init(|| {
@@ -944,8 +1007,10 @@ pub async fn create_and_open_spreadsheet(
 }
 
 #[tauri::command]
-pub async fn is_this_folder(app: tauri::AppHandle, item_id: String) -> Result<(), String> {
+pub async fn is_this_folder(item_id: String) -> Result<(), String> {
+    let app = get_app_handle();
     let hub = get_drive_hub(&app).await?;
+    let app = get_app_handle();
 
     let result = hub
         .files()
@@ -997,38 +1062,50 @@ pub async fn cancel_scan_drive() -> Result<(), String> {
 
 #[tauri::command]
 pub async fn delete_original_from_parent(
-    app: tauri::AppHandle,
-    window: tauri::AppHandle,
     original_id: String,
     copy_id: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
+    let app = get_app_handle();
     let hub = get_drive_hub(&app).await?;
+    let window = get_main_window();
 
     let original = get_item(app.clone(), &original_id).await?;
+    let mut copy = get_item(app.clone(), &copy_id).await?;
     let parents = original.parents.ok_or("Нет родительских папок")?;
 
     for parent_id in parents {
-        hub.files()
+        match hub
+            .files()
             .update(google_drive3::api::File::default(), &original_id)
             .remove_parents(&parent_id)
             .add_scope("https://www.googleapis.com/auth/drive")
             .supports_all_drives(true)
             .doit_without_upload()
             .await
-            .map_err(|e| format!("Failed: {}", e))?;
+        {
+            Ok(_) => {}
+            Err(e) => {
+                let err_str = e.to_string();
+                // Google API иногда возвращает 204 No Content (пустое тело)
+                if !err_str.contains("EOF while parsing") && !err_str.contains("expected value") {
+                    return Err(format!("Failed: {}", err_str));
+                }
+                // Иначе игнорируем — операция успешна
+            }
+        }
     }
 
-    delete_custom_property(app.clone(), &copy_id, vec!["original_item_id"]).await?;
+    copy.delete_property("original_item_id");
+    copy.sync_properties(app.clone()).await?;
+
+    let item_name = original.name.unwrap_or_else(|| String::from("без имени"));
 
     window
         .emit(
             "scan_log",
-            &format!(
-                "🚀 Удалили объект с именем {} из родительской папки",
-                original.name.unwrap_or(String::new())
-            ),
+            &format!("🗑️ Удалили оригинал из папки: {}", item_name),
         )
         .ok();
 
-    Ok(())
+    Ok(item_name)
 }
