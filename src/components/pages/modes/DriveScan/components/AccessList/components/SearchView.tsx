@@ -1,7 +1,15 @@
 // ============ SEARCH VIEW ============
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Access } from '../../../../../../../core/ScanContext.tsx';
-import { Box, Button, Typography } from '@mui/material';
+import {
+    Box,
+    Button,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Select,
+    Typography,
+} from '@mui/material';
 import { AutoSizer, List } from 'react-virtualized';
 import { UniqueKey } from '../types/types.ts';
 import { getUniqueKey } from '../utils.ts';
@@ -43,13 +51,23 @@ export const SearchView: React.FC<{
     sortBy,
     onSortByChange,
 }) => {
+    const users = useMemo(
+        () =>
+            access.reduce((a, v) => {
+                a.add(v.email);
+                return a;
+            }, new Set<string>()),
+        [access]
+    );
+
     const listRef = useRef<any>(null);
 
     const filteredAndSorted = useMemo(() => {
         let result = [...access];
 
-        if (searchUser.trim()) {
+        if (searchUser !== 'all') {
             const lower = searchUser.toLowerCase();
+
             result = result.filter(
                 (item) =>
                     item.user.toLowerCase().includes(lower) ||
@@ -137,18 +155,39 @@ export const SearchView: React.FC<{
                         gap: 2,
                         px: 2,
                         py: 1.5,
-                        borderBottom: '1px solid',
-                        borderColor: 'divider',
+                        position: 'relative', // для псевдоэлемента
                         cursor: canSelect ? 'pointer' : 'default',
-                        bgcolor: isSelected ? 'primary.100' : 'transparent',
-                        '&:hover': canSelect
-                            ? {
-                                  bgcolor: isSelected
-                                      ? 'primary.200'
-                                      : 'action.hover',
-                              }
-                            : {},
-                        opacity: canSelect ? 1 : 0.6,
+                        userSelect: 'none',
+
+                        transition: 'all 0.14s ease',
+
+                        '&:hover': canSelect && {
+                            backgroundColor: 'action.hover',
+                        },
+
+                        ...(isSelected && {
+                            backgroundColor: 'primary.50', // очень светлый primary
+                            color: 'primary.dark',
+
+                            '&:hover': {
+                                backgroundColor: 'primary.100',
+                            },
+
+                            // левый акцент-бар
+                            '&::before': {
+                                content: '""',
+                                position: 'absolute',
+                                left: 0,
+                                top: 0,
+                                bottom: 0,
+                                width: 4,
+                                backgroundColor: 'primary.main',
+                                borderTopRightRadius: 4,
+                                borderBottomRightRadius: 4,
+                            },
+                        }),
+
+                        opacity: canSelect ? 1 : 0.55,
                     }}
                     onClick={() => {
                         if (canSelect) onToggleItem(item);
@@ -278,21 +317,35 @@ export const SearchView: React.FC<{
                     >
                         Пользователь:
                     </Typography>
-                    <input
-                        type='text'
-                        placeholder='Имя или email...'
-                        value={searchUser}
-                        onChange={(e) => onSearchUserChange(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                        }}
-                    />
-                </Box>
+                    <FormControl
+                        fullWidth
+                        size='small'
+                    >
+                        <Select
+                            label='Пользователь'
+                            value={searchUser}
+                            onChange={(e) => onSearchUserChange(e.target.value)}
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        maxHeight: 320,
+                                    },
+                                },
+                            }}
+                        >
+                            <MenuItem value='all'>Все</MenuItem>
 
+                            {Array.from(users).map((u) => (
+                                <MenuItem
+                                    key={u}
+                                    value={u}
+                                >
+                                    {u}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
                 <Box>
                     <Typography
                         variant='caption'
@@ -314,7 +367,6 @@ export const SearchView: React.FC<{
                         }}
                     />
                 </Box>
-
                 <Box>
                     <Typography
                         variant='caption'
@@ -336,7 +388,6 @@ export const SearchView: React.FC<{
                         }}
                     />
                 </Box>
-
                 <Box>
                     <Typography
                         variant='caption'
@@ -344,33 +395,36 @@ export const SearchView: React.FC<{
                     >
                         Уровень доступа:
                     </Typography>
-                    <select
-                        value={filterAccessLevel}
-                        onChange={(e) =>
-                            onFilterAccessLevelChange(
-                                e.target.value as
-                                    | 'all'
-                                    | 'owner'
-                                    | 'editor'
-                                    | 'viewer'
-                            )
-                        }
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                        }}
+                    <FormControl
+                        fullWidth
+                        size='small'
                     >
-                        <option value='all'>Все</option>
-                        <option value='owner'>👑 Владельцы</option>
-                        <option value='editor'>✏️ Редакторы</option>
-                        <option value='viewer'>👁️ Просмотр</option>
-                        <option value={'commenter'}>💬Комментатор</option>
-                    </select>
+                        <Select
+                            value={filterAccessLevel}
+                            label='Уровень'
+                            onChange={(e) =>
+                                onFilterAccessLevelChange(
+                                    e.target.value as
+                                        | 'all'
+                                        | 'owner'
+                                        | 'editor'
+                                        | 'viewer'
+                                        | 'commenter'
+                                )
+                            }
+                        >
+                            <MenuItem value='all'>Все уровни</MenuItem>
+                            <MenuItem value='owner'>👑 Владельцы</MenuItem>
+                            <MenuItem value='editor'>✏️ Редакторы</MenuItem>
+                            <MenuItem value='commenter'>
+                                💬 Комментаторы
+                            </MenuItem>
+                            <MenuItem value='viewer'>
+                                👁️ Только просмотр
+                            </MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
-
                 <Box>
                     <Typography
                         variant='caption'
@@ -378,30 +432,33 @@ export const SearchView: React.FC<{
                     >
                         Сортировка:
                     </Typography>
-                    <select
-                        value={sortBy}
-                        onChange={(e) =>
-                            onSortByChange(
-                                e.target.value as
-                                    | 'name'
-                                    | 'user'
-                                    | 'path'
-                                    | 'level'
-                            )
-                        }
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                        }}
+                    <FormControl
+                        fullWidth
+                        size='small'
                     >
-                        <option value='level'>По критичности</option>
-                        <option value='name'>По имени файла</option>
-                        <option value='user'>По пользователю</option>
-                        <option value='path'>По пути</option>
-                    </select>
+                        <Select
+                            value={sortBy}
+                            label='По...'
+                            onChange={(e) =>
+                                onSortByChange(
+                                    e.target.value as
+                                        | 'name'
+                                        | 'user'
+                                        | 'path'
+                                        | 'level'
+                                )
+                            }
+                        >
+                            <MenuItem value='level'>
+                                По критичности (важности)
+                            </MenuItem>
+                            <MenuItem value='name'>
+                                По имени файла / папки
+                            </MenuItem>
+                            <MenuItem value='user'>По пользователю</MenuItem>
+                            <MenuItem value='path'>По пути</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
             </Box>
 
