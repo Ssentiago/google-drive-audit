@@ -181,6 +181,7 @@ async fn clean_suspicious_permissions(
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct CopyInfo {
     pub copy_id: String,
     pub copy_name: String,
