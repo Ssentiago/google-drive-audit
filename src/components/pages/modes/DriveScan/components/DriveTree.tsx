@@ -18,6 +18,8 @@ interface TreeNode {
     hasSuspiciousAccess: boolean;
     suspiciousCount: number;
     path: string;
+    totalItemsInside: number;
+    itemsWithAccessInside: number;
 }
 
 interface TreeNodeWithChildren extends TreeNode {
@@ -68,7 +70,7 @@ const DriveTree = () => {
 
     useEffect(() => {
         const unlistenTree = listen<TreeNode>('tree_node', (event) => {
-            const node = event.payload;
+            const node = event.payload;=
 
             setNodes((prev) => {
                 const updated = new Map(prev);
@@ -544,18 +546,18 @@ const DriveTree = () => {
     const stats = useMemo(() => {
         let totalFiles = 0;
         let totalFolders = 0;
-        let suspiciousFiles = 0;
+        let suspiciousItems = 0;
 
         nodes.forEach((node) => {
             if (node.itemType === 'file') {
                 totalFiles++;
-                if (node.hasSuspiciousAccess) suspiciousFiles++;
             } else {
                 totalFolders++;
             }
+            if (node.hasSuspiciousAccess) suspiciousItems++;
         });
 
-        return { totalFiles, totalFolders, suspiciousFiles };
+        return { totalFiles, totalFolders, suspiciousFiles: suspiciousItems };
     }, [nodes]);
 
     return (
@@ -706,6 +708,24 @@ const DriveTree = () => {
                                 : 'свернуть'}
                         </Typography>
                     )}
+
+                    {hoveredNode.itemType === 'folder' &&
+                        hoveredNode.totalItemsInside > 0 && (
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                                <Chip
+                                    label={`${hoveredNode.totalItemsInside} объектов`}
+                                    size='small'
+                                    variant='outlined'
+                                />
+                                {hoveredNode.itemsWithAccessInside > 0 && (
+                                    <Chip
+                                        label={`${hoveredNode.itemsWithAccessInside} с доступами`}
+                                        size='small'
+                                        color='warning'
+                                    />
+                                )}
+                            </Box>
+                        )}
                 </Paper>
             )}
 
@@ -753,8 +773,7 @@ const DriveTree = () => {
                                     verticalAlign: 'middle',
                                 }}
                             />
-                            <strong>{stats.suspiciousFiles}</strong>{' '}
-                            подозрительных
+                            <strong>{stats.suspiciousFiles}</strong> с доступами
                         </Typography>
                     )}
                 </Box>
