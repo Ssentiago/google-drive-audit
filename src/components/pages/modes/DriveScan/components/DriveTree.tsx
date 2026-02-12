@@ -70,7 +70,7 @@ const DriveTree = () => {
 
     useEffect(() => {
         const unlistenTree = listen<TreeNode>('tree_node', (event) => {
-            const node = event.payload;=
+            const node = event.payload;
 
             setNodes((prev) => {
                 const updated = new Map(prev);
