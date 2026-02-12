@@ -12,6 +12,8 @@ use tauri::Emitter;
 use tokio::sync::{broadcast, mpsc, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 
+use google_drive3::api::Permission as G_Permission;
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
@@ -609,6 +611,30 @@ pub async fn export_employee_data(
         start_row += chunk.len();
     }
 
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
+
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
 }
@@ -797,6 +823,30 @@ pub async fn export_all_employees(
         }
     }
 
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
+
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
 }
@@ -882,6 +932,30 @@ pub async fn export_links_data(
 
         start_row += chunk.len();
     }
+
+    let permission = G_Permission {
+        type_: Some("anyone".to_string()),
+        role: Some("reader".to_string()),
+        ..Default::default()
+    };
+
+    let drive_hub = get_drive_hub(&app).await?;
+
+    let result = drive_hub
+        .permissions()
+        .create(permission, &spreadsheet_id)
+        .doit()
+        .await;
+
+    if result.is_err() {
+        window
+            .emit("audit_log", "⚠️ Не удалось сделать таблицу публичной")
+            .ok();
+    }
+
+    window
+        .emit("audit_log", "✅ Данные записаны, открываем таблицу...")
+        .ok();
 
     crate::oauth::open_url(spreadsheet_url.clone())?;
     Ok(spreadsheet_url)
