@@ -50,6 +50,8 @@ import { List as VirtualList, AutoSizer } from 'react-virtualized';
 import 'react-virtualized/styles.css';
 import AuditTree from './AuditTree.tsx';
 import { useGlobalContext } from '../../../../core/GlobalContext.tsx';
+import LogDrawer from '../../../common/LogDrawer.tsx';
+import { FolderSelector } from '../../../common/FolderSelector.tsx';
 
 interface AccessDetail {
     itemId: string;
@@ -667,70 +669,14 @@ export const DriveAudit: React.FC = () => {
                                         },
                                     }}
                                 />
-                                <Tooltip title='Выбрать сохранённую папку'>
-                                    <IconButton
-                                        onClick={() =>
-                                            setShowFoldersDialog(true)
-                                        }
-                                        disabled={scanning}
-                                        sx={{
-                                            bgcolor: alpha('#1976d2', 0.1),
-                                            '&:hover': {
-                                                bgcolor: alpha('#1976d2', 0.2),
-                                            },
-                                        }}
-                                    >
-                                        <Badge
-                                            badgeContent={savedFolders.length}
-                                            color='primary'
-                                        >
-                                            <FolderOpenIcon />
-                                        </Badge>
-                                    </IconButton>
-                                </Tooltip>
-
-                                {folderId.trim() === '' ? (
-                                    <Tooltip title='Сохранить текущую папку (введите ID)'>
-                                        <span>
-                                            <IconButton disabled>
-                                                <BookmarkBorderIcon />
-                                            </IconButton>
-                                        </span>
-                                    </Tooltip>
-                                ) : savedFolders.some(
-                                      (f) => f.id === folderId.trim()
-                                  ) ? (
-                                    <Tooltip title='Папка уже сохранена'>
-                                        <IconButton
-                                            disabled
-                                            sx={{ color: 'success.main' }}
-                                        >
-                                            <CheckCircleIcon />
-                                        </IconButton>
-                                    </Tooltip>
-                                ) : (
-                                    <Tooltip title='Сохранить текущую папку'>
-                                        <IconButton
-                                            onClick={() =>
-                                                setShowSaveDialog(true)
-                                            }
-                                            disabled={
-                                                scanning || Boolean(idError)
-                                            }
-                                            sx={{
-                                                bgcolor: alpha('#1976d2', 0.1),
-                                                '&:hover': {
-                                                    bgcolor: alpha(
-                                                        '#1976d2',
-                                                        0.2
-                                                    ),
-                                                },
-                                            }}
-                                        >
-                                            <BookmarkAddIcon />
-                                        </IconButton>
-                                    </Tooltip>
-                                )}
+                                <FolderSelector
+                                    folderId={folderId}
+                                    isScanning={scanning}
+                                    hasIdError={Boolean(idError)}
+                                    savedFolders={savedFolders}
+                                    onFolderSelect={setFolderId}
+                                    onFoldersUpdate={loadSavedFolders}
+                                />
                             </Box>
                         </Box>
 
@@ -757,6 +703,17 @@ export const DriveAudit: React.FC = () => {
                                     ? `Сканирование... ${formatSeconds(elapsedSeconds)}`
                                     : 'Запустить аудит'}
                             </Button>
+
+                            <LogDrawer
+                                logs={logs}
+                                isOpen={drawerOpen}
+                                onOpen={() => {
+                                    setDrawerOpen(true);
+                                    setNewLogsCount(0);
+                                }}
+                                onClose={() => setDrawerOpen(false)}
+                                newLogsCount={newLogsCount}
+                            />
 
                             {scanning && (
                                 <>
