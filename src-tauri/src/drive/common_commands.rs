@@ -124,9 +124,15 @@ async fn copy_item_recursive(
 
         Ok(new_folder_id)
     } else {
+        let copy_request = File {
+            name: Some(new_name.to_string()),
+            parents: Some(vec![new_parent_id.to_string()]),
+            ..Default::default()
+        };
+
         let (response, copied_file) = hub
             .files()
-            .copy(File::default(), item_id)
+            .copy(copy_request, item_id)
             .add_scope("https://www.googleapis.com/auth/drive")
             .supports_all_drives(true)
             .doit()
@@ -138,20 +144,6 @@ async fn copy_item_recursive(
         }
 
         let new_id = copied_file.id.ok_or("Нет ID")?;
-
-        let update_file = File {
-            name: Some(new_name.to_string()),
-            parents: Some(vec![new_parent_id.to_string()]),
-            ..Default::default()
-        };
-
-        hub.files()
-            .update(update_file, &new_id)
-            .add_scope("https://www.googleapis.com/auth/drive")
-            .supports_all_drives(true)
-            .doit_without_upload()
-            .await
-            .map_err(|e| e.to_string())?;
 
         window
             .emit("scan_log", &format!("📄 Скопирован файл: {}", new_name))
