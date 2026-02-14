@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import About from './components/pages/About/About.tsx';
 import SplashScreen from './components/common/SplashScreen.tsx';
 import { Audit } from './components/pages/Audit/Audit.tsx';
+import { Box } from '@mui/material';
 
 const App: React.FC = () => {
     const { currentPage, setCurrentPage, setUserEmail } = useGlobalContext();
@@ -49,12 +50,12 @@ const App: React.FC = () => {
     }
 
     return (
-        <>
+        <Box sx={{ userSelect: 'none' }}>
             {currentPage === 'login' && <Auth />}
             {currentPage === 'main' && <Main />}
             {currentPage === 'about' && <About />}
             {currentPage === 'audit' && <Audit />}
-        </>
+        </Box>
     );
 };
 
