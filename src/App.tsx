@@ -31,15 +31,7 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        const validPages = [
-            'main',
-            'access-list',
-            'about',
-            'direct-scan',
-            'drive-scan',
-            'audit',
-            'login',
-        ];
+        const validPages = ['main', 'about', 'audit', 'auth'];
 
         if (!validPages.includes(currentPage)) {
             setCurrentPage('main');
@@ -52,7 +44,7 @@ const App: React.FC = () => {
 
     return (
         <Box sx={{ userSelect: 'none' }}>
-            {currentPage === 'login' && <Auth />}
+            {currentPage === 'auth' && <Auth />}
             {currentPage === 'main' && <Main />}
             {currentPage === 'about' && <About />}
             {currentPage === 'audit' && <Audit />}
