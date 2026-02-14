@@ -1,5 +1,5 @@
-use crate::drive::rate_semaphore::{GLOBAL_RATE_LIMITER, GLOBAL_SEMAPHORE};
-use crate::oauth::{get_drive_hub, get_sheets_hub};
+use crate::app_handle_storage::get_app_handle;
+use crate::oauth::get_drive_hub;
 use google_drive3::api::File;
 use governor::clock::DefaultClock;
 use governor::state::{InMemoryState, NotKeyed};
@@ -63,7 +63,8 @@ impl DriveItem {
         self.properties.remove(key);
     }
 
-    pub async fn sync_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+    pub async fn sync_properties(&mut self) -> Result<(), String> {
+        let app = get_app_handle();
         let hub = get_drive_hub(&app).await?;
 
         let file_id = self.id.as_ref().ok_or("No file ID")?;
@@ -81,7 +82,8 @@ impl DriveItem {
         Ok(())
     }
 
-    pub async fn fetch_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+    pub async fn fetch_properties(&mut self) -> Result<(), String> {
+        let app = get_app_handle();
         let hub = get_drive_hub(&app).await?;
 
         let file_id = self.id.as_ref().ok_or("No file ID")?;
