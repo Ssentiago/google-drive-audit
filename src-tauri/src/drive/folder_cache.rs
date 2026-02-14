@@ -1,3 +1,4 @@
+use crate::app_handle_storage::get_app_handle;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -72,11 +73,8 @@ pub fn is_folder_saved(app: &tauri::AppHandle, folder_id: &str) -> bool {
     }
 }
 
-pub fn add_scan_to_folder(
-    app: &tauri::AppHandle,
-    folder_id: &str,
-    scan_data: ScanHistoryEntry,
-) -> Result<(), String> {
+pub fn add_scan_to_folder(folder_id: &str, scan_data: ScanHistoryEntry) -> Result<(), String> {
+    let app = get_app_handle();
     let mut cache = load_cache(app)?;
 
     if let Some(folder) = cache.folders.get_mut(folder_id) {
