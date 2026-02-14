@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Box, Paper, Typography, Chip, alpha } from '@mui/material';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { alpha, Box, Chip, Paper, Typography } from '@mui/material';
 import { listen } from '@tauri-apps/api/event';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
@@ -19,6 +19,11 @@ interface TreeNode {
     path: string;
 }
 
+interface ScanProgress {
+    foldersProcessed: number;
+    filesProcessed: number;
+}
+
 interface TreeNodeWithChildren extends TreeNode {
     children: TreeNodeWithChildren[];
     x: number;
@@ -34,7 +39,7 @@ const BASE_RADIUS = 120;
 const LEVEL_OFFSET = 100;
 const LABEL_MIN_ZOOM = 0.8;
 
-const AuditTree = () => {
+const Tree = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [nodes, setNodes] = useState<Map<string, TreeNode>>(new Map());
@@ -56,7 +61,17 @@ const AuditTree = () => {
     const nodeAnimations = useRef<Map<string, number>>(new Map());
     const lastDrawTime = useRef<number>(0);
 
+    const [stats, setStats] = useState<ScanProgress>({
+        foldersProcessed: 0,
+        filesProcessed: 0,
+    });
     useEffect(() => {
+        const unlistenScanProgress = listen<ScanProgress>(
+            'audit_progress',
+            (event) => {
+                setStats(event.payload);
+            }
+        );
         const unlistenTree = listen<TreeNode>('audit_tree_node', (event) => {
             const node = event.payload;
             setNodes((prev) => {
@@ -87,6 +102,7 @@ const AuditTree = () => {
         );
 
         return () => {
+            unlistenScanProgress.then((fn) => fn());
             unlistenTree.then((fn) => fn());
             unlistenStatus.then((fn) => fn());
         };
@@ -485,21 +501,6 @@ const AuditTree = () => {
         return () => container.removeEventListener('wheel', preventScroll);
     }, []);
 
-    const stats = useMemo(() => {
-        let totalFiles = 0;
-        let totalFolders = 0;
-
-        nodes.forEach((node) => {
-            if (node.itemType === 'file') {
-                totalFiles++;
-            } else {
-                totalFolders++;
-            }
-        });
-
-        return { totalFiles, totalFolders };
-    }, [nodes]);
-
     return (
         <Box
             ref={containerRef}
@@ -635,10 +636,10 @@ const AuditTree = () => {
                     sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}
                 >
                     <Typography variant='body2'>
-                        <strong>{stats.totalFolders}</strong> папок
+                        <strong>{stats.foldersProcessed}</strong> папок
                     </Typography>
                     <Typography variant='body2'>
-                        <strong>{stats.totalFiles}</strong> файлов
+                        <strong>{stats.filesProcessed}</strong> файлов
                     </Typography>
                 </Box>
             </Paper>
@@ -712,4 +713,4 @@ const AuditTree = () => {
     );
 };
 
-export default AuditTree;
+export default Tree;
