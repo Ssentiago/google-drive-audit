@@ -28,7 +28,6 @@ fn main() {
             oauth::is_authenticated,
             oauth::get_user_email,
             oauth::get_app_version,
-            oauth::get_current_token,
             drive::common_commands::remove_permission,
             drive::common_commands::is_drive_item,
             drive::common_commands::copy_and_clean,

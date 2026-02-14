@@ -23,6 +23,13 @@ pub const CLIENT_SECRET: &str = "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";
 pub type HttpsConn = HttpsConnector<HttpConnector>;
 type AuthType = Authenticator<HttpsConn>;
 
+const ALL_SCOPES: &[&str] = &[
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+];
+
 static AUTHENTICATOR: OnceCell<TokioMutex<Option<AuthType>>> = OnceCell::new();
 
 struct TauriFlowDelegate;
@@ -98,22 +105,13 @@ pub async fn get_drive_hub(app: &AppHandle) -> Result<Arc<DriveHub<HttpsConn>>, 
 
     let auth_cell = AUTHENTICATOR.get().unwrap();
     let auth_guard = auth_cell.lock().await;
-    let auth = auth_guard.as_ref().unwrap();
-
-    let scopes = &["https://www.googleapis.com/auth/drive"];
-    let _ = auth.token(scopes).await.map_err(|e| e.to_string())?;
-
-    drop(auth_guard);
-
-    let auth_cell = AUTHENTICATOR.get().unwrap();
-    let auth_guard = auth_cell.lock().await;
     let auth_clone = auth_guard.as_ref().unwrap().clone();
     drop(auth_guard);
 
     let client = Client::builder(TokioExecutor::new()).build(build_connector());
-
     Ok(Arc::new(DriveHub::new(client, auth_clone)))
 }
+
 pub async fn get_sheets_hub(app: &AppHandle) -> Result<Arc<Sheets<HttpsConn>>, String> {
     get_or_create_authenticator(app).await?;
 
@@ -133,31 +131,7 @@ pub async fn start_google_oauth(app: AppHandle) -> Result<String, String> {
     let auth_guard = auth_cell.lock().await;
     let auth = auth_guard.as_ref().unwrap();
 
-    let scopes = &[
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile",
-    ];
-
-    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
-    Ok(token.token().unwrap_or_default().to_string())
-}
-
-#[tauri::command]
-pub async fn get_valid_access_token(app: AppHandle) -> Result<String, String> {
-    get_or_create_authenticator(&app).await?;
-
-    let auth_cell = AUTHENTICATOR.get().unwrap();
-    let auth_guard = auth_cell.lock().await;
-    let auth = auth_guard.as_ref().unwrap();
-
-    let scopes = &[
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/spreadsheets",
-    ];
-
-    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
+    let token = auth.token(ALL_SCOPES).await.map_err(|e| e.to_string())?;
     Ok(token.token().unwrap_or_default().to_string())
 }
 
@@ -171,11 +145,8 @@ pub async fn logout(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .join("google_tokens.json");
 
-    println!("logout: token_file = {:?}", token_file);
-
     if token_file.exists() {
         std::fs::remove_file(token_file).map_err(|e| e.to_string())?;
-        println!("logout: файл удалён");
     }
 
     if let Some(auth_cell) = AUTHENTICATOR.get() {
@@ -240,23 +211,6 @@ pub async fn get_user_email(app: AppHandle) -> Result<String, String> {
     }
 
     return Ok(("Cannot get user info".to_string()));
-}
-
-#[tauri::command]
-pub async fn get_current_token(app: AppHandle) -> Result<String, String> {
-    get_or_create_authenticator(&app).await?;
-
-    let auth_cell = AUTHENTICATOR.get().unwrap();
-    let auth_guard = auth_cell.lock().await;
-    let auth = auth_guard.as_ref().unwrap();
-
-    let scopes = &[
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/spreadsheets",
-    ];
-
-    let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
-    Ok(token.token().unwrap_or_default().to_string())
 }
 
 #[tauri::command]
