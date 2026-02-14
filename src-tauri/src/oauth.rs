@@ -178,6 +178,11 @@ pub async fn logout(app: AppHandle) -> Result<(), String> {
         println!("logout: файл удалён");
     }
 
+    if let Some(auth_cell) = AUTHENTICATOR.get() {
+        let mut auth_guard = auth_cell.lock().await;
+        *auth_guard = None;
+    }
+
     Ok(())
 }
 
