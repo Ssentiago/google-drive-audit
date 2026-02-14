@@ -30,12 +30,8 @@ const App: React.FC = () => {
         })();
     }, []);
 
-    if (isLoading) {
-        return <SplashScreen />;
-    }
-
-    if (
-        ![
+    useEffect(() => {
+        const validPages = [
             'main',
             'access-list',
             'about',
@@ -43,10 +39,15 @@ const App: React.FC = () => {
             'drive-scan',
             'audit',
             'login',
-        ].includes(currentPage)
-    ) {
-        setCurrentPage('main');
-        return null;
+        ];
+
+        if (!validPages.includes(currentPage)) {
+            setCurrentPage('main');
+        }
+    }, [currentPage, setCurrentPage]);
+
+    if (isLoading) {
+        return <SplashScreen />;
     }
 
     return (
