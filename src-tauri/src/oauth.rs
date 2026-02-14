@@ -14,7 +14,7 @@ use yup_oauth2::{
     InstalledFlowReturnMethod,
 };
 
-use reqwest;
+use crate::app_handle_storage::get_app_handle;
 
 pub const CLIENT_ID: &str =
     "89904030073-n57leahr5epo8bf7q1qlo2spnui75d80.apps.googleusercontent.com";
@@ -252,4 +252,13 @@ pub async fn get_current_token(app: AppHandle) -> Result<String, String> {
 
     let token = auth.token(scopes).await.map_err(|e| e.to_string())?;
     Ok(token.token().unwrap_or_default().to_string())
+}
+
+#[tauri::command]
+pub async fn get_app_version() -> Result<String, String> {
+    let app = get_app_handle();
+
+    let app_version = app.package_info().version.clone();
+
+    Ok(app_version.to_string())
 }
