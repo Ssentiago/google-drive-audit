@@ -15,10 +15,14 @@ import {
     Checkbox,
     Chip,
     IconButton,
+    InputAdornment,
     MenuItem,
     Paper,
     Select,
+    Stack,
     TextField,
+    ToggleButton,
+    ToggleButtonGroup,
     Tooltip,
     Typography,
 } from '@mui/material';
@@ -27,9 +31,20 @@ import {
     ContentCopy,
     Delete,
     DeleteSweep,
+    FilterList,
+    FolderOpen,
+    InsertDriveFile,
+    Search,
+    SwapVert,
+    ArrowDownward,
+    ArrowUpward,
 } from '@mui/icons-material';
 import LogDrawer from '../../../../common/LogDrawer.tsx';
 import { AutoSizer, List as VirtualList } from 'react-virtualized';
+
+type SortField = 'name' | 'role' | 'path' | 'type' | 'depth';
+type SortOrder = 'asc' | 'desc';
+type ViewMode = 'list' | 'tree';
 
 const EmployeeDetailView: React.FC<{
     email: string;
@@ -44,7 +59,8 @@ const EmployeeDetailView: React.FC<{
     const [searchPath, setSearchPath] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [typeFilter, setTypeFilter] = useState<string>('all');
-    const [sortBy, setSortBy] = useState<'name' | 'role' | 'path'>('role');
+    const [sortField, setSortField] = useState<SortField>('role');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
     const [loading, setLoading] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [newLogsCount, setNewLogsCount] = useState(0);
@@ -58,7 +74,6 @@ const EmployeeDetailView: React.FC<{
                 const perm = item.permissions[permIdx];
                 if (!perm) return null;
 
-                // ПРОПУСКАЕМ если владелец И уже скопирован
                 if (
                     perm.role === 'owner' &&
                     item.properties.is_copied === 'true'
@@ -82,8 +97,26 @@ const EmployeeDetailView: React.FC<{
             .filter(Boolean) as AccessDetail[];
     }, [email, result]);
 
+    // Уникальные родители для фильтра
+    const uniqueParents = useMemo(() => {
+        const parents = new Map<string, string>();
+        accesses.forEach((acc) => {
+            if (acc.parentId) {
+                const parent = result.items[acc.parentId];
+                if (parent) {
+                    parents.set(acc.parentId, parent.name);
+                }
+            }
+        });
+        return Array.from(parents.entries()).sort((a, b) =>
+            a[1].localeCompare(b[1])
+        );
+    }, [accesses, result.items]);
+
     const filtered = useMemo(() => {
-        let list = accesses.filter((acc) => {
+        return accesses.filter((acc) => {
+            const item = result.items[acc.itemId];
+
             const matchName =
                 searchName === '' ||
                 acc.itemName.toLowerCase().includes(searchName.toLowerCase());
@@ -95,7 +128,9 @@ const EmployeeDetailView: React.FC<{
                 (roleFilter === 'owner' && acc.role === 'owner') ||
                 (roleFilter === 'editor' && acc.role === 'editor') ||
                 (roleFilter === 'viewer' && acc.role === 'viewer') ||
-                (roleFilter === 'commenter' && acc.role === 'commenter');
+                (roleFilter === 'commenter' && acc.role === 'commenter') ||
+                (roleFilter === 'organizer' &&
+                    (acc.role === 'organizer' || acc.role === 'fileOrganizer'));
             const matchType =
                 typeFilter === 'all' ||
                 (typeFilter === 'folder' && acc.itemType === 'folder') ||
@@ -103,23 +138,83 @@ const EmployeeDetailView: React.FC<{
 
             return matchName && matchPath && matchRole && matchType;
         });
+    }, [
+        accesses,
+        searchName,
+        searchPath,
+        roleFilter,
+        typeFilter,
+        result.items,
+    ]);
 
-        if (sortBy === 'name') {
-            list.sort((a, b) => a.itemName.localeCompare(b.itemName));
-        } else if (sortBy === 'path') {
-            list.sort((a, b) => a.path.localeCompare(b.path));
-        } else if (sortBy === 'role') {
-            const priority = {
-                owner: 0,
-                editor: 1,
-                commenter: 2,
-                viewer: 3,
-            } as any;
-            list.sort((a, b) => priority[a.role] - priority[b.role]);
+    const sorted = useMemo(() => {
+        const copy = [...filtered];
+        copy.sort((a, b) => {
+            let aVal: any, bVal: any;
+
+            switch (sortField) {
+                case 'name':
+                    aVal = a.itemName.toLowerCase();
+                    bVal = b.itemName.toLowerCase();
+                    break;
+                case 'path':
+                    aVal = a.path.toLowerCase();
+                    bVal = b.path.toLowerCase();
+                    break;
+                case 'type':
+                    aVal = a.itemType;
+                    bVal = b.itemType;
+                    break;
+                case 'depth':
+                    aVal = (a.path.match(/\//g) || []).length;
+                    bVal = (b.path.match(/\//g) || []).length;
+                    break;
+                case 'role':
+                    const priority = {
+                        owner: 0,
+                        organizer: 1,
+                        fileOrganizer: 1,
+                        editor: 2,
+                        commenter: 3,
+                        viewer: 4,
+                    } as any;
+                    aVal = priority[a.role];
+                    bVal = priority[b.role];
+                    break;
+            }
+
+            if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return copy;
+    }, [filtered, sortField, sortOrder]);
+
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortOrder('asc');
         }
+    };
 
-        return list;
-    }, [accesses, searchName, searchPath, roleFilter, typeFilter, sortBy]);
+    const stats = useMemo(() => {
+        return {
+            total: accesses.length,
+            filtered: sorted.length,
+            selected: selected.size,
+            owners: accesses.filter((a) => a.role === 'owner').length,
+            editors: accesses.filter((a) => a.role === 'editor').length,
+            folders: accesses.filter((a) => a.itemType === 'folder').length,
+            files: accesses.filter((a) => a.itemType === 'file').length,
+            dangerous: accesses.filter(
+                (a) =>
+                    a.isOwner ||
+                    (a.role === 'editor' && a.itemType === 'folder')
+            ).length,
+        };
+    }, [accesses, sorted, selected]);
 
     const toggleItem = (itemId: string) => {
         setSelected((prev) => {
@@ -131,11 +226,18 @@ const EmployeeDetailView: React.FC<{
     };
 
     const selectAll = () => {
-        setSelected(new Set(filtered.map((a) => a.itemId)));
+        setSelected(new Set(sorted.map((a) => a.itemId)));
     };
 
     const clearSelection = () => {
         setSelected(new Set());
+    };
+
+    const selectDangerous = () => {
+        const dangerous = sorted.filter(
+            (a) => a.isOwner || (a.role === 'editor' && a.itemType === 'folder')
+        );
+        setSelected(new Set(dangerous.map((a) => a.itemId)));
     };
 
     const removeFromLocal = (itemId: string) => {
@@ -193,7 +295,6 @@ const EmployeeDetailView: React.FC<{
                 if (id) toRemove.add(id);
             });
 
-            // Пауза между чанками кроме последнего
             if (i + CHUNK_SIZE < affected.length) {
                 await new Promise((resolve) => setTimeout(resolve, 300));
             }
@@ -223,7 +324,6 @@ const EmployeeDetailView: React.FC<{
             const item = result.items[itemId];
             removeFromLocal(itemId);
 
-            // #1 Проверяем каскад если это была папка
             if (
                 item?.mimeType === 'folder' ||
                 item?.mimeType?.includes('folder')
@@ -236,6 +336,7 @@ const EmployeeDetailView: React.FC<{
             removeFromLocal(itemId);
         }
     };
+
     const copyAndClean = async (
         itemId: string,
         itemName: string,
@@ -250,13 +351,10 @@ const EmployeeDetailView: React.FC<{
                 parentId,
                 suspiciousEmails,
             });
-            console.log('=== COPY INFO FROM BACKEND ===', copyInfo);
-            console.log('copy_id:', copyInfo.copyId);
 
             onLogsUpdate(`✅ Создана копия: ${itemName}`);
             if (!drawerOpen) setNewLogsCount((c) => c + 1);
 
-            // Обновляем проперти оригинала
             const originalItem = result.items[itemId];
 
             if (originalItem) {
@@ -288,26 +386,22 @@ const EmployeeDetailView: React.FC<{
             setLoading(false);
         }
     };
+
     const bulkProcess = async () => {
         if (selected.size === 0) return;
         setLoading(true);
 
-        // Сортируем: сначала файлы, потом папки от глубоких к корневым
-        const items = filtered
+        const items = sorted
             .filter((a) => selected.has(a.itemId))
             .sort((a, b) => {
-                // Сначала файлы, потом папки
                 if (a.itemType !== b.itemType) {
                     return a.itemType === 'file' ? -1 : 1;
                 }
-
-                // Папки: чем глубже путь (больше '/'), тем раньше обработать
                 if (a.itemType === 'folder' && b.itemType === 'folder') {
                     const depthA = (a.path.match(/\//g) || []).length;
                     const depthB = (b.path.match(/\//g) || []).length;
-                    return depthB - depthA; // от глубоких к корневым
+                    return depthB - depthA;
                 }
-
                 return 0;
             });
 
@@ -363,7 +457,6 @@ const EmployeeDetailView: React.FC<{
 
                             toRemoveFromIndex.add(acc.itemId);
 
-                            // Каскад для папок
                             if (acc.itemType === 'folder') {
                                 (result.emailIndex[email] || []).forEach(
                                     ([itemId]) => {
@@ -462,12 +555,31 @@ const EmployeeDetailView: React.FC<{
                         >
                             {email}
                         </Typography>
-                        <Typography
-                            variant='body2'
-                            color='text.secondary'
+                        <Stack
+                            direction='row'
+                            spacing={1}
+                            sx={{ mt: 0.5 }}
                         >
-                            {accesses.length} доступов
-                        </Typography>
+                            <Chip
+                                size='small'
+                                label={`Всего: ${stats.total}`}
+                            />
+                            <Chip
+                                size='small'
+                                label={`Показано: ${stats.filtered}`}
+                                color='primary'
+                            />
+                            <Chip
+                                size='small'
+                                label={`Владелец: ${stats.owners}`}
+                                color='error'
+                            />
+                            <Chip
+                                size='small'
+                                label={`Редактор: ${stats.editors}`}
+                                color='warning'
+                            />
+                        </Stack>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         {selected.size > 0 && (
@@ -498,7 +610,7 @@ const EmployeeDetailView: React.FC<{
                             size='small'
                             onClick={selectAll}
                         >
-                            Выделить все
+                            Все
                         </Button>
                         <LogDrawer
                             logs={logs}
@@ -513,25 +625,52 @@ const EmployeeDetailView: React.FC<{
                     </Box>
                 </Box>
 
+                {/* Поиск */}
                 <Box
                     sx={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(5, 1fr)',
+                        gridTemplateColumns: '1fr 1fr',
                         gap: 2,
+                        mb: 2,
                     }}
                 >
                     <TextField
-                        placeholder='Имя файла...'
+                        placeholder='Поиск по имени...'
                         value={searchName}
                         onChange={(e) => setSearchName(e.target.value)}
                         size='small'
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position='start'>
+                                    <Search />
+                                </InputAdornment>
+                            ),
+                        }}
                     />
                     <TextField
-                        placeholder='Путь...'
+                        placeholder='Поиск по пути...'
                         value={searchPath}
                         onChange={(e) => setSearchPath(e.target.value)}
                         size='small'
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position='start'>
+                                    <Search />
+                                </InputAdornment>
+                            ),
+                        }}
                     />
+                </Box>
+
+                {/* Фильтры */}
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: 2,
+                        mb: 2,
+                    }}
+                >
                     <Select
                         value={roleFilter}
                         onChange={(e) => setRoleFilter(e.target.value)}
@@ -539,6 +678,7 @@ const EmployeeDetailView: React.FC<{
                     >
                         <MenuItem value='all'>Все роли</MenuItem>
                         <MenuItem value='owner'>👑 Владельцы</MenuItem>
+                        <MenuItem value='organizer'>🔧 Организаторы</MenuItem>
                         <MenuItem value='editor'>✏️ Редакторы</MenuItem>
                         <MenuItem value='commenter'>💬 Комментаторы</MenuItem>
                         <MenuItem value='viewer'>👁️ Просмотр</MenuItem>
@@ -549,23 +689,49 @@ const EmployeeDetailView: React.FC<{
                         size='small'
                     >
                         <MenuItem value='all'>Все типы</MenuItem>
-                        <MenuItem value='folder'>📁 Папки</MenuItem>
-                        <MenuItem value='file'>📄 Файлы</MenuItem>
+                        <MenuItem value='folder'>
+                            📁 Папки ({stats.folders})
+                        </MenuItem>
+                        <MenuItem value='file'>
+                            📄 Файлы ({stats.files})
+                        </MenuItem>
                     </Select>
-                    <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as any)}
-                        size='small'
-                    >
-                        <MenuItem value='role'>По критичности</MenuItem>
-                        <MenuItem value='name'>По имени</MenuItem>
-                        <MenuItem value='path'>По пути</MenuItem>
-                    </Select>
+                </Box>
+
+                {/* Сортировка */}
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {[
+                        { field: 'role' as SortField, label: 'Критичность' },
+                        { field: 'name' as SortField, label: 'Имя' },
+                        { field: 'path' as SortField, label: 'Путь' },
+                        { field: 'type' as SortField, label: 'Тип' },
+                        { field: 'depth' as SortField, label: 'Глубина' },
+                    ].map(({ field, label }) => (
+                        <Chip
+                            key={field}
+                            label={label}
+                            onClick={() => toggleSort(field)}
+                            color={sortField === field ? 'primary' : 'default'}
+                            variant={
+                                sortField === field ? 'filled' : 'outlined'
+                            }
+                            icon={
+                                sortField === field ? (
+                                    sortOrder === 'asc' ? (
+                                        <ArrowUpward />
+                                    ) : (
+                                        <ArrowDownward />
+                                    )
+                                ) : undefined
+                            }
+                            sx={{ cursor: 'pointer' }}
+                        />
+                    ))}
                 </Box>
             </Card>
 
             <Card sx={{ height: 'calc(100vh - 400px)' }}>
-                {filtered.length === 0 ? (
+                {sorted.length === 0 ? (
                     <Box
                         sx={{
                             p: 4,
@@ -581,11 +747,16 @@ const EmployeeDetailView: React.FC<{
                             <VirtualList
                                 height={height}
                                 width={width}
-                                rowCount={filtered.length}
+                                rowCount={sorted.length}
                                 rowHeight={100}
                                 rowRenderer={({ index, key, style }) => {
-                                    const acc = filtered[index];
+                                    const acc = sorted[index];
                                     const isSelected = selected.has(acc.itemId);
+                                    const item = result.items[acc.itemId];
+                                    const isCopied =
+                                        item?.properties.is_copied === 'true';
+                                    const depth = (acc.path.match(/\//g) || [])
+                                        .length;
 
                                     return (
                                         <div
@@ -607,6 +778,9 @@ const EmployeeDetailView: React.FC<{
                                                     borderColor: isSelected
                                                         ? 'primary.main'
                                                         : 'divider',
+                                                    borderLeft: isCopied
+                                                        ? '4px solid #4caf50'
+                                                        : undefined,
                                                     transition: 'all 0.2s',
                                                     '&:hover': {
                                                         bgcolor: alpha(
@@ -637,24 +811,54 @@ const EmployeeDetailView: React.FC<{
                                                         minWidth: 0,
                                                     }}
                                                 >
-                                                    <Typography
+                                                    <Box
                                                         sx={{
-                                                            fontWeight: 600,
-                                                            overflow: 'hidden',
-                                                            textOverflow:
-                                                                'ellipsis',
-                                                            whiteSpace:
-                                                                'nowrap',
+                                                            display: 'flex',
+                                                            gap: 1,
+                                                            alignItems:
+                                                                'center',
+                                                            mb: 0.5,
                                                         }}
                                                     >
-                                                        {acc.itemName}
-                                                    </Typography>
-                                                    <Typography
-                                                        variant='caption'
-                                                        color='text.secondary'
+                                                        <Typography
+                                                            sx={{
+                                                                fontWeight: 600,
+                                                                overflow:
+                                                                    'hidden',
+                                                                textOverflow:
+                                                                    'ellipsis',
+                                                                whiteSpace:
+                                                                    'nowrap',
+                                                            }}
+                                                        >
+                                                            {acc.itemName}
+                                                        </Typography>
+                                                        {isCopied && (
+                                                            <Chip
+                                                                size='small'
+                                                                label='Скопировано'
+                                                                color='success'
+                                                            />
+                                                        )}
+                                                    </Box>
+                                                    <Stack
+                                                        direction='row'
+                                                        spacing={1}
+                                                        alignItems='center'
                                                     >
-                                                        {acc.path || 'Корень'}
-                                                    </Typography>
+                                                        <Typography
+                                                            variant='caption'
+                                                            color='text.secondary'
+                                                        >
+                                                            {acc.path ||
+                                                                'Корень'}
+                                                        </Typography>
+                                                        <Chip
+                                                            size='small'
+                                                            label={`Уровень: ${depth}`}
+                                                            variant='outlined'
+                                                        />
+                                                    </Stack>
                                                 </Box>
                                                 <Chip
                                                     label={roleToRu(acc.role)}

@@ -5,6 +5,7 @@ import {
     Box,
     Button,
     Card,
+    Chip,
     IconButton,
     InputAdornment,
     MenuItem,
@@ -15,9 +16,12 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { Delete, Description, Search } from '@mui/icons-material';
+import { Delete, Description, Search, SwapVert } from '@mui/icons-material';
 import { AuditResult } from '../../types/interfaces.ts';
 import { AutoSizer, List as VirtualList } from 'react-virtualized';
+
+type SortField = 'name' | 'path' | 'type' | 'role' | 'owner';
+type SortOrder = 'asc' | 'desc';
 
 const LinksView: React.FC<{
     result: AuditResult;
@@ -26,9 +30,11 @@ const LinksView: React.FC<{
     const [searchPath, setSearchPath] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [typeFilter, setTypeFilter] = useState<string>('all');
+    const [ownerFilter, setOwnerFilter] = useState<string>('all');
+    const [sortField, setSortField] = useState<SortField>('path');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
     const [exporting, setExporting] = useState(false);
 
-    // Маппинг Rust enum → Google Drive API роли
     const roleToApi = (role: string): string => {
         const map: Record<string, string> = {
             Owner: 'owner',
@@ -41,6 +47,7 @@ const LinksView: React.FC<{
         return map[role] || 'reader';
     };
 
+    // Собираем ссылки + владельцев
     const links = useMemo(() => {
         const linkEntries = result.emailIndex['__link__'] || [];
         return linkEntries
@@ -50,6 +57,12 @@ const LinksView: React.FC<{
                 const perm = item.permissions[permIdx];
                 if (!perm || !perm.isLink) return null;
 
+                // Находим owner
+                const ownerPerm = item.permissions.find(
+                    (p) => p.role === 'owner' || p.role === 'organizer'
+                );
+                const ownerEmail = ownerPerm?.email || 'unknown';
+
                 return {
                     itemId,
                     itemName: item.name,
@@ -57,13 +70,21 @@ const LinksView: React.FC<{
                         ? 'folder'
                         : 'file',
                     path: item.path,
-                    role: roleToApi(perm.role), // конвертируем в API формат
+                    role: roleToApi(perm.role),
                     permissionId: perm.permissionId,
+                    ownerEmail,
                 };
             })
             .filter(Boolean) as any[];
     }, [result]);
 
+    // Список уникальных владельцев для фильтра
+    const uniqueOwners = useMemo(() => {
+        const owners = new Set(links.map((l) => l.ownerEmail));
+        return Array.from(owners).sort();
+    }, [links]);
+
+    // Фильтрация
     const filtered = useMemo(() => {
         return links.filter((link) => {
             const matchPath =
@@ -75,9 +96,57 @@ const LinksView: React.FC<{
                 typeFilter === 'all' ||
                 (typeFilter === 'folder' && link.itemType === 'folder') ||
                 (typeFilter === 'file' && link.itemType === 'file');
-            return matchPath && matchRole && matchType;
+            const matchOwner =
+                ownerFilter === 'all' || link.ownerEmail === ownerFilter;
+
+            return matchPath && matchRole && matchType && matchOwner;
         });
-    }, [links, searchPath, roleFilter, typeFilter]);
+    }, [links, searchPath, roleFilter, typeFilter, ownerFilter]);
+
+    // Сортировка
+    const sorted = useMemo(() => {
+        const copy = [...filtered];
+        copy.sort((a, b) => {
+            let aVal: any, bVal: any;
+
+            switch (sortField) {
+                case 'name':
+                    aVal = a.itemName.toLowerCase();
+                    bVal = b.itemName.toLowerCase();
+                    break;
+                case 'path':
+                    aVal = a.path.toLowerCase();
+                    bVal = b.path.toLowerCase();
+                    break;
+                case 'type':
+                    aVal = a.itemType;
+                    bVal = b.itemType;
+                    break;
+                case 'role':
+                    aVal = a.role;
+                    bVal = b.role;
+                    break;
+                case 'owner':
+                    aVal = a.ownerEmail.toLowerCase();
+                    bVal = b.ownerEmail.toLowerCase();
+                    break;
+            }
+
+            if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return copy;
+    }, [filtered, sortField, sortOrder]);
+
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortOrder('asc');
+        }
+    };
 
     const updateLinkRole = async (
         itemId: string,
@@ -139,12 +208,23 @@ const LinksView: React.FC<{
                             ? 'Экспорт...'
                             : 'Экспорт доступов по ссылкам'}
                     </Button>
+                    <Box sx={{ flex: 1 }} />
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ alignSelf: 'center' }}
+                    >
+                        Найдено: {sorted.length} из {links.length}
+                    </Typography>
                 </Box>
+
+                {/* Фильтры */}
                 <Box
                     sx={{
                         display: 'grid',
-                        gridTemplateColumns: '2fr 1fr 1fr',
+                        gridTemplateColumns: '2fr 1fr 1fr 1.5fr',
                         gap: 2,
+                        mb: 2,
                     }}
                 >
                     <TextField
@@ -179,6 +259,56 @@ const LinksView: React.FC<{
                         <MenuItem value='folder'>Папки</MenuItem>
                         <MenuItem value='file'>Файлы</MenuItem>
                     </Select>
+                    <Select
+                        value={ownerFilter}
+                        onChange={(e) => setOwnerFilter(e.target.value)}
+                        size='small'
+                    >
+                        <MenuItem value='all'>Все владельцы</MenuItem>
+                        {uniqueOwners.map((owner) => (
+                            <MenuItem
+                                key={owner}
+                                value={owner}
+                            >
+                                {owner}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </Box>
+
+                {/* Сортировка */}
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {[
+                        { field: 'name' as SortField, label: 'По имени' },
+                        { field: 'path' as SortField, label: 'По пути' },
+                        { field: 'type' as SortField, label: 'По типу' },
+                        { field: 'role' as SortField, label: 'По роли' },
+                        { field: 'owner' as SortField, label: 'По владельцу' },
+                    ].map(({ field, label }) => (
+                        <Chip
+                            key={field}
+                            label={label}
+                            onClick={() => toggleSort(field)}
+                            color={sortField === field ? 'primary' : 'default'}
+                            variant={
+                                sortField === field ? 'filled' : 'outlined'
+                            }
+                            icon={
+                                sortField === field ? (
+                                    <SwapVert
+                                        sx={{
+                                            transform:
+                                                sortOrder === 'desc'
+                                                    ? 'rotate(180deg)'
+                                                    : 'none',
+                                            transition: 'transform 0.2s',
+                                        }}
+                                    />
+                                ) : undefined
+                            }
+                            sx={{ cursor: 'pointer' }}
+                        />
+                    ))}
                 </Box>
             </Card>
 
@@ -188,10 +318,10 @@ const LinksView: React.FC<{
                         <VirtualList
                             height={height}
                             width={width}
-                            rowCount={filtered.length}
+                            rowCount={sorted.length}
                             rowHeight={100}
                             rowRenderer={({ index, key, style }) => {
-                                const link = filtered[index];
+                                const link = sorted[index];
                                 return (
                                     <div
                                         key={key}
@@ -224,19 +354,35 @@ const LinksView: React.FC<{
                                                         minWidth: 0,
                                                     }}
                                                 >
-                                                    <Typography
-                                                        variant='caption'
-                                                        color='text.secondary'
+                                                    <Box
                                                         sx={{
-                                                            textTransform:
-                                                                'uppercase',
+                                                            display: 'flex',
+                                                            gap: 1,
+                                                            alignItems:
+                                                                'center',
+                                                            mb: 0.5,
                                                         }}
                                                     >
-                                                        {link.itemType ===
-                                                        'file'
-                                                            ? 'файл'
-                                                            : 'папка'}
-                                                    </Typography>
+                                                        <Typography
+                                                            variant='caption'
+                                                            color='text.secondary'
+                                                            sx={{
+                                                                textTransform:
+                                                                    'uppercase',
+                                                            }}
+                                                        >
+                                                            {link.itemType ===
+                                                            'file'
+                                                                ? 'файл'
+                                                                : 'папка'}
+                                                        </Typography>
+                                                        <Typography
+                                                            variant='caption'
+                                                            color='primary'
+                                                        >
+                                                            • {link.ownerEmail}
+                                                        </Typography>
+                                                    </Box>
                                                     <Typography
                                                         variant='body2'
                                                         sx={{

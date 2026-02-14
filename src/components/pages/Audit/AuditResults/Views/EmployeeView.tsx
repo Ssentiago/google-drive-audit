@@ -15,6 +15,7 @@ import {
     MenuItem,
     Paper,
     Select,
+    Stack,
     TextField,
     Tooltip,
     Typography,
@@ -23,9 +24,15 @@ import LogDrawer from '../../../../common/LogDrawer.tsx';
 import { AuditResult } from '../../types/interfaces.ts';
 import { AutoSizer, List as VirtualList } from 'react-virtualized';
 import {
+    ArrowDownward,
+    ArrowUpward,
     Description as DescriptionIcon,
+    FilterList,
     Search as SearchIcon,
 } from '@mui/icons-material';
+
+type SortField = 'items' | 'name' | 'owners' | 'editors';
+type SortOrder = 'asc' | 'desc';
 
 const EmployeesView: React.FC<{
     result: AuditResult;
@@ -52,7 +59,9 @@ const EmployeesView: React.FC<{
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
-    const [sortBy, setSortBy] = useState<'items' | 'name'>('items');
+    const [minItemsFilter, setMinItemsFilter] = useState<string>('all');
+    const [sortField, setSortField] = useState<SortField>('items');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
     const [exporting, setExporting] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [newLogsCount, setNewLogsCount] = useState(0);
@@ -60,7 +69,6 @@ const EmployeesView: React.FC<{
 
     const listRef = useRef<VirtualList>(null);
 
-    // Восстановить прокрутку при монтировании
     useEffect(() => {
         if (listRef.current && scrollOffset > 0) {
             listRef.current.scrollToPosition(scrollOffset);
@@ -116,17 +124,72 @@ const EmployeesView: React.FC<{
                 (roleFilter === 'viewer' && emp.stats.viewers > 0) ||
                 (roleFilter === 'commenter' && emp.stats.commenters > 0);
 
-            return matchSearch && matchRole;
+            const matchMinItems =
+                minItemsFilter === 'all' ||
+                (minItemsFilter === '10' && emp.totalItems >= 10) ||
+                (minItemsFilter === '50' && emp.totalItems >= 50) ||
+                (minItemsFilter === '100' && emp.totalItems >= 100);
+
+            return matchSearch && matchRole && matchMinItems;
         });
 
-        if (sortBy === 'items') {
-            list.sort((a, b) => b.totalItems - a.totalItems);
-        } else {
-            list.sort((a, b) => a.email.localeCompare(b.email));
-        }
+        list.sort((a, b) => {
+            let aVal: any, bVal: any;
+
+            switch (sortField) {
+                case 'items':
+                    aVal = a.totalItems;
+                    bVal = b.totalItems;
+                    break;
+                case 'name':
+                    aVal = a.email.toLowerCase();
+                    bVal = b.email.toLowerCase();
+                    break;
+                case 'owners':
+                    aVal = a.stats.owners;
+                    bVal = b.stats.owners;
+                    break;
+                case 'editors':
+                    aVal = a.stats.editors;
+                    bVal = b.stats.editors;
+                    break;
+            }
+
+            if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        });
 
         return list;
-    }, [employees, searchQuery, roleFilter, sortBy, bulkMode, bulkEmails]);
+    }, [
+        employees,
+        searchQuery,
+        roleFilter,
+        minItemsFilter,
+        sortField,
+        sortOrder,
+        bulkMode,
+        bulkEmails,
+    ]);
+
+    const toggleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortOrder(field === 'name' ? 'asc' : 'desc');
+        }
+    };
+
+    const stats = useMemo(() => {
+        return {
+            total: employees.length,
+            filtered: filtered.length,
+            totalItems: filtered.reduce((sum, e) => sum + e.totalItems, 0),
+            withOwners: filtered.filter((e) => e.stats.owners > 0).length,
+            withEditors: filtered.filter((e) => e.stats.editors > 0).length,
+        };
+    }, [employees, filtered]);
 
     const exportAllEmployees = async () => {
         try {
@@ -164,7 +227,14 @@ const EmployeesView: React.FC<{
     return (
         <Box>
             <Card sx={{ p: 2, mb: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        gap: 2,
+                        mb: 2,
+                        alignItems: 'center',
+                    }}
+                >
                     <Button
                         variant='contained'
                         color='primary'
@@ -173,7 +243,7 @@ const EmployeesView: React.FC<{
                         disabled={exporting}
                         sx={{ textTransform: 'none', fontWeight: 600 }}
                     >
-                        {exporting ? 'Экспорт...' : 'Экспорт всех сотрудников'}
+                        {exporting ? 'Экспорт...' : 'Экспорт всех'}
                     </Button>
 
                     <Button
@@ -184,7 +254,7 @@ const EmployeesView: React.FC<{
                     >
                         {bulkMode
                             ? `👥 Список (${bulkEmails.size})`
-                            : '👥 Поиск по списку'}
+                            : '👥 По списку'}
                     </Button>
 
                     {bulkMode && (
@@ -202,6 +272,28 @@ const EmployeesView: React.FC<{
                         </Button>
                     )}
 
+                    <Box sx={{ flex: 1 }} />
+
+                    <Stack
+                        direction='row'
+                        spacing={1}
+                    >
+                        <Chip
+                            size='small'
+                            label={`Всего: ${stats.total}`}
+                        />
+                        <Chip
+                            size='small'
+                            label={`Показано: ${stats.filtered}`}
+                            color='primary'
+                        />
+                        <Chip
+                            size='small'
+                            label={`Доступов: ${stats.totalItems}`}
+                            variant='outlined'
+                        />
+                    </Stack>
+
                     <LogDrawer
                         logs={logs}
                         isOpen={drawerOpen}
@@ -214,51 +306,104 @@ const EmployeesView: React.FC<{
                     />
                 </Box>
 
-                {/* Фильтры — скрываем в bulk-режиме, они не нужны */}
                 {!bulkMode && (
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gridTemplateColumns: '2fr 1fr 1fr',
-                            gap: 2,
-                        }}
-                    >
-                        <TextField
-                            placeholder='Поиск по email...'
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            size='small'
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position='start'>
-                                        <SearchIcon />
-                                    </InputAdornment>
-                                ),
+                    <>
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: '2fr 1fr 1fr',
+                                gap: 2,
+                                mb: 2,
                             }}
-                        />
-                        <Select
-                            value={roleFilter}
-                            onChange={(e) => setRoleFilter(e.target.value)}
-                            size='small'
                         >
-                            <MenuItem value='all'>Все роли</MenuItem>
-                            <MenuItem value='owner'>Владельцы</MenuItem>
-                            <MenuItem value='editor'>Редакторы</MenuItem>
-                            <MenuItem value='commenter'>Комментаторы</MenuItem>
-                            <MenuItem value='viewer'>Просмотр</MenuItem>
-                        </Select>
-                        <Select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as any)}
-                            size='small'
-                        >
-                            <MenuItem value='items'>По количеству</MenuItem>
-                            <MenuItem value='name'>По email</MenuItem>
-                        </Select>
-                    </Box>
+                            <TextField
+                                placeholder='Поиск по email...'
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                size='small'
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position='start'>
+                                            <SearchIcon />
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
+                            <Select
+                                value={roleFilter}
+                                onChange={(e) => setRoleFilter(e.target.value)}
+                                size='small'
+                            >
+                                <MenuItem value='all'>Все роли</MenuItem>
+                                <MenuItem value='owner'>👑 Владельцы</MenuItem>
+                                <MenuItem value='editor'>✏️ Редакторы</MenuItem>
+                                <MenuItem value='commenter'>
+                                    💬 Комментаторы
+                                </MenuItem>
+                                <MenuItem value='viewer'>👁️ Просмотр</MenuItem>
+                            </Select>
+                            <Select
+                                value={minItemsFilter}
+                                onChange={(e) =>
+                                    setMinItemsFilter(e.target.value)
+                                }
+                                size='small'
+                            >
+                                <MenuItem value='all'>
+                                    Любое количество
+                                </MenuItem>
+                                <MenuItem value='10'>≥ 10 доступов</MenuItem>
+                                <MenuItem value='50'>≥ 50 доступов</MenuItem>
+                                <MenuItem value='100'>≥ 100 доступов</MenuItem>
+                            </Select>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            {[
+                                {
+                                    field: 'items' as SortField,
+                                    label: 'Доступов',
+                                },
+                                {
+                                    field: 'owners' as SortField,
+                                    label: 'Владельцев',
+                                },
+                                {
+                                    field: 'editors' as SortField,
+                                    label: 'Редакторов',
+                                },
+                                { field: 'name' as SortField, label: 'Email' },
+                            ].map(({ field, label }) => (
+                                <Chip
+                                    key={field}
+                                    label={label}
+                                    onClick={() => toggleSort(field)}
+                                    color={
+                                        sortField === field
+                                            ? 'primary'
+                                            : 'default'
+                                    }
+                                    variant={
+                                        sortField === field
+                                            ? 'filled'
+                                            : 'outlined'
+                                    }
+                                    icon={
+                                        sortField === field ? (
+                                            sortOrder === 'asc' ? (
+                                                <ArrowUpward />
+                                            ) : (
+                                                <ArrowDownward />
+                                            )
+                                        ) : undefined
+                                    }
+                                    sx={{ cursor: 'pointer' }}
+                                />
+                            ))}
+                        </Box>
+                    </>
                 )}
 
-                {/* Bulk-режим: показываем статистику по списку */}
                 {bulkMode && (
                     <Box
                         sx={{
@@ -315,7 +460,6 @@ const EmployeesView: React.FC<{
                                                 p: 2,
                                                 cursor: 'pointer',
                                                 transition: 'all 0.2s',
-                                                // В bulk-режиме подсвечиваем
                                                 bgcolor: bulkMode
                                                     ? alpha('#ff9800', 0.05)
                                                     : 'transparent',
@@ -414,7 +558,7 @@ const EmployeesView: React.FC<{
                                                         fontSize: 16,
                                                     }}
                                                 />
-                                                <Tooltip title='Экспорт данных сотрудника'>
+                                                <Tooltip title='Экспорт данных'>
                                                     <IconButton
                                                         size='small'
                                                         onClick={(e) =>
