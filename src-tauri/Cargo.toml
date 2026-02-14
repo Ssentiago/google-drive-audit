@@ -1,6 +1,6 @@
 [package]
 name = "google-drive-audit"
-version = "4.0.0"
+version = "4.1.0"
 description = "A tool for Google Drive Audit"
 authors = [ "Sentiago" ]
 edition = "2021"
