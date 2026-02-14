@@ -1,24 +1,23 @@
-// components/FolderSelector.tsx
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-    Box,
-    IconButton,
-    Tooltip,
+    alpha,
     Badge,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
+    Box,
     Button,
-    TextField,
-    Typography,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    IconButton,
     List,
     ListItem,
     ListItemButton,
     ListItemText,
-    Divider,
-    alpha,
+    TextField,
+    Tooltip,
+    Typography,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
@@ -26,18 +25,20 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-interface SavedFolder {
+export interface ScanHistoryEntry {
+    timestamp: number;
+    foldersCount: number;
+    filesCount: number;
+    durationSec: number;
+    suspiciousCount: number;
+}
+
+export interface SavedFolder {
     id: string;
     name: string;
     savedAt: number;
-    lastScan?: {
-        timestamp: number;
-        foldersCount: number;
-        filesCount: number;
-        durationSec: number;
-        suspiciousCount: number;
-    };
-    scanHistory: any[];
+    lastScan: ScanHistoryEntry | null;
+    scanHistory: ScanHistoryEntry[];
 }
 
 interface FolderSelectorProps {
@@ -110,7 +111,7 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
 
     return (
         <>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                 {/* Select Saved Folder Button */}
                 <Tooltip title='Выбрать сохранённую папку'>
                     <IconButton
@@ -121,13 +122,16 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
                             '&:hover': {
                                 bgcolor: alpha('#1976d2', 0.2),
                             },
+                            mt: 0.5,
+                            height: 40,
+                            width: 40,
                         }}
                     >
                         <Badge
                             badgeContent={savedFolders.length}
                             color='primary'
                         >
-                            <FolderOpenIcon />
+                            <FolderOpenIcon sx={{ fontSize: 20 }} />
                         </Badge>
                     </IconButton>
                 </Tooltip>
@@ -136,8 +140,15 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
                 {folderId.trim() === '' ? (
                     <Tooltip title='Сохранить текущую папку (введите ID)'>
                         <span>
-                            <IconButton disabled>
-                                <BookmarkBorderIcon />
+                            <IconButton
+                                disabled
+                                sx={{
+                                    mt: 0.5,
+                                    height: 40,
+                                    width: 40,
+                                }}
+                            >
+                                <BookmarkBorderIcon sx={{ fontSize: 20 }} />
                             </IconButton>
                         </span>
                     </Tooltip>
@@ -145,9 +156,14 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
                     <Tooltip title='Папка уже сохранена'>
                         <IconButton
                             disabled
-                            sx={{ color: 'success.main' }}
+                            sx={{
+                                color: 'success.main',
+                                mt: 0.5,
+                                height: 40,
+                                width: 40,
+                            }}
                         >
-                            <CheckCircleIcon />
+                            <CheckCircleIcon sx={{ fontSize: 20 }} />
                         </IconButton>
                     </Tooltip>
                 ) : (
@@ -160,14 +176,16 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
                                 '&:hover': {
                                     bgcolor: alpha('#1976d2', 0.2),
                                 },
+                                mt: 0.5,
+                                height: 40,
+                                width: 40,
                             }}
                         >
-                            <BookmarkAddIcon />
+                            <BookmarkAddIcon sx={{ fontSize: 20 }} />
                         </IconButton>
                     </Tooltip>
                 )}
             </Box>
-
             {/* Save Folder Dialog */}
             <Dialog
                 open={showSaveDialog}
@@ -217,7 +235,6 @@ export const FolderSelector: React.FC<FolderSelectorProps> = ({
                     </Button>
                 </DialogActions>
             </Dialog>
-
             {/* Saved Folders Dialog */}
             <Dialog
                 open={showFoldersDialog}
