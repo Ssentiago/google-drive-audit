@@ -14,6 +14,7 @@ import {
     DeleteSweep as DeleteSweepIcon,
     Link as LinkIcon,
     People as PeopleIcon,
+    VpnKey,
 } from '@mui/icons-material';
 import { AuditResult, EmployeeStats } from '../types/interfaces.ts';
 import EmployeeDetailView from './Views/EmployeeDetailView.tsx';
@@ -46,11 +47,30 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
         ).length;
     }, [localResult]);
 
-    const totalItems = Object.keys(localResult.items).length;
-    const employeesCount = Object.keys(localResult.emailIndex).filter(
-        (e) => e !== '__link__'
-    ).length;
-    const linksCount = (localResult.emailIndex['__link__'] || []).length;
+    const totalItems = useMemo(
+        () => Object.keys(localResult.items).length,
+        [localResult]
+    );
+    const employeesCount = useMemo(
+        () =>
+            Object.keys(localResult.emailIndex).filter((e) => e !== '__link__')
+                .length,
+        [localResult]
+    );
+
+    const linksCount = useMemo(
+        () => (localResult.emailIndex['__link__'] || []).length,
+        [localResult]
+    );
+
+    const accessesCount = useMemo(
+        () =>
+            Object.values(localResult.stats).reduce(
+                (acc, stat) => acc + stat.totalItems,
+                0
+            ),
+        [localResult]
+    );
 
     const updateResult = (newResult: AuditResult) => {
         const stats: Record<string, EmployeeStats> = {};
@@ -178,7 +198,7 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
             <Box
                 sx={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
                     gap: 2,
                     mb: 3,
                 }}
@@ -350,6 +370,39 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
                         sx={{ fontWeight: 500 }}
                     >
                         Всего элементов
+                    </Typography>
+                </Card>
+                <Card
+                    sx={{
+                        p: 3,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1,
+                            mb: 1,
+                        }}
+                    >
+                        <VpnKey sx={{ color: 'primary.main', fontSize: 28 }} />
+                        <Typography
+                            variant='h3'
+                            sx={{ fontWeight: 700 }}
+                        >
+                            {accessesCount}
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ fontWeight: 500 }}
+                    >
+                        Всего доступов
                     </Typography>
                 </Card>
             </Box>
