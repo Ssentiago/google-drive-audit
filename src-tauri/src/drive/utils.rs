@@ -239,8 +239,7 @@ pub async fn list_folder_contents(
                     .list()
                     .q(&format!("'{}' in parents and trashed=false", folder_id))
                     .add_scope("https://www.googleapis.com/auth/drive")
-                    .param("fields", "nextPageToken,files(id,name,mimeType,webViewLink,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress))")
-                    .page_size(1000)
+                    .param("fields", "nextPageToken,files(id,name,mimeType,webViewLink,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress),properties)")                    .page_size(1000)
                     .supports_all_drives(true)
                     .include_items_from_all_drives(true);
 
