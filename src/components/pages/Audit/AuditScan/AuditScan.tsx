@@ -286,71 +286,66 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
     };
 
     if (!scanning) {
-        // До скана — центральная карточка
         return (
             <Box
                 sx={{
                     minHeight: '100vh',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    py: 4,
                     background: (theme) =>
                         `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
+                    p: 3,
                 }}
             >
-                <Box sx={{ maxWidth: 800, width: '100%', px: 3 }}>
-                    <Card
+                <Box sx={{ mb: 3 }}>
+                    <Box
                         sx={{
-                            p: 5,
-                            borderRadius: 3,
-                            boxShadow: (theme) =>
-                                `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            mb: 2,
                         }}
                     >
-                        <Box sx={{ mb: 4 }}>
-                            <Box
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 2,
-                                    mb: 2,
-                                }}
-                            >
-                                <IconButton
-                                    onClick={() => setCurrentPage('main')}
-                                    sx={{
-                                        bgcolor: alpha('#1976d2', 0.1),
-                                        '&:hover': {
-                                            bgcolor: alpha('#1976d2', 0.2),
-                                        },
-                                    }}
-                                >
-                                    <ArrowBackIcon />
-                                </IconButton>
-                                <Typography
-                                    variant='h4'
-                                    component='h1'
-                                    sx={{
-                                        fontWeight: 800,
-                                        background:
-                                            'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
-                                        backgroundClip: 'text',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                    }}
-                                >
-                                    Аудит доступов
-                                </Typography>
-                            </Box>
-                            <Typography
-                                variant='body2'
-                                sx={{ color: 'text.secondary' }}
-                            >
-                                Сканирование и управление доступами
-                            </Typography>
-                        </Box>
+                        <IconButton
+                            onClick={async () => {
+                                await handleCancel();
+                                setCurrentPage('main');
+                            }}
+                            sx={{
+                                bgcolor: alpha('#1976d2', 0.1),
+                                '&:hover': { bgcolor: alpha('#1976d2', 0.2) },
+                            }}
+                        >
+                            <ArrowBackIcon />
+                        </IconButton>
+                        <Typography
+                            variant='h4'
+                            sx={{
+                                fontWeight: 800,
+                                background:
+                                    'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+                                backgroundClip: 'text',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                            }}
+                        >
+                            Аудит доступов
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        Сканирование и управление доступами Google Drive
+                    </Typography>
+                </Box>
 
+                <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+                    <Card
+                        sx={{
+                            p: 4,
+                            border: 1,
+                            borderColor: 'divider',
+                        }}
+                    >
                         <Box sx={{ mb: 3 }}>
                             <Box
                                 sx={{
@@ -510,7 +505,6 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
             </Box>
         );
     }
-
     // Во время скана — sticky-карточка слева + Tree+Pulse справа
     return (
         <Box
@@ -536,9 +530,8 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
                 <Card
                     sx={{
                         p: 4,
-                        borderRadius: 3,
-                        boxShadow: (theme) =>
-                            `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
+                        border: 1,
+                        borderColor: 'divider',
                     }}
                 >
                     <Box sx={{ mb: 3 }}>
@@ -580,7 +573,7 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
                             variant='body2'
                             sx={{ color: 'text.secondary' }}
                         >
-                            Сканирование и управление доступами
+                            Сканирование и управление доступами Google Drive
                         </Typography>
                     </Box>
 
@@ -815,9 +808,6 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
                         overflow: 'hidden',
                         border: 1,
                         borderColor: 'divider',
-                        borderRadius: 3,
-                        boxShadow: (theme) =>
-                            `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
                     }}
                 >
                     <Box sx={{ height: 'calc(100% - 90px)' }}>
@@ -825,6 +815,361 @@ export const AuditScan: React.FC<Props> = ({ onScanComplete }) => {
                     </Box>
                     <Box sx={{ height: 90 }}>
                         <ScanPulse />
+                        return (
+                        <Box
+                            sx={{
+                                minHeight: '100vh',
+                                display: 'flex',
+                                gap: 3,
+                                p: 3,
+                                background: (theme) =>
+                                    `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
+                            }}
+                        >
+                            {/* Sticky-карточка слева */}
+                            <Box
+                                sx={{
+                                    width: 420,
+                                    flexShrink: 0,
+                                    position: 'sticky',
+                                    top: 24,
+                                    alignSelf: 'flex-start',
+                                }}
+                            >
+                                <Card
+                                    sx={{
+                                        p: 4,
+                                        border: 1,
+                                        borderColor: 'divider',
+                                    }}
+                                >
+                                    <Box sx={{ mb: 3 }}>
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 2,
+                                                mb: 2,
+                                            }}
+                                        >
+                                            <IconButton
+                                                onClick={() =>
+                                                    setCurrentPage('main')
+                                                }
+                                                sx={{
+                                                    bgcolor: alpha(
+                                                        '#1976d2',
+                                                        0.1
+                                                    ),
+                                                    '&:hover': {
+                                                        bgcolor: alpha(
+                                                            '#1976d2',
+                                                            0.2
+                                                        ),
+                                                    },
+                                                }}
+                                            >
+                                                <ArrowBackIcon />
+                                            </IconButton>
+                                            <Typography
+                                                variant='h5'
+                                                component='h1'
+                                                sx={{
+                                                    fontWeight: 800,
+                                                    background:
+                                                        'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+                                                    backgroundClip: 'text',
+                                                    WebkitBackgroundClip:
+                                                        'text',
+                                                    WebkitTextFillColor:
+                                                        'transparent',
+                                                }}
+                                            >
+                                                Аудит доступов
+                                            </Typography>
+                                        </Box>
+                                        <Typography
+                                            variant='body2'
+                                            sx={{ color: 'text.secondary' }}
+                                        >
+                                            Сканирование и управление доступами
+                                            Google Drive
+                                        </Typography>
+                                    </Box>
+
+                                    <Box sx={{ mb: 3 }}>
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 1,
+                                                mb: 1.5,
+                                            }}
+                                        >
+                                            <Typography
+                                                variant='subtitle2'
+                                                sx={{ fontWeight: 600 }}
+                                            >
+                                                ID или ссылка на папку
+                                            </Typography>
+                                            <Tooltip
+                                                title={
+                                                    <Box>
+                                                        <Typography
+                                                            variant='caption'
+                                                            sx={{
+                                                                display:
+                                                                    'block',
+                                                                mb: 0.5,
+                                                            }}
+                                                        >
+                                                            Вставьте ID или
+                                                            полную ссылку:
+                                                        </Typography>
+                                                        <Typography
+                                                            variant='caption'
+                                                            sx={{
+                                                                display:
+                                                                    'block',
+                                                                fontFamily:
+                                                                    'monospace',
+                                                                fontSize:
+                                                                    '0.7rem',
+                                                            }}
+                                                        >
+                                                            https://drive.google.com/drive/u/0/folders/
+                                                            <strong>
+                                                                1EHOqUs...
+                                                            </strong>
+                                                        </Typography>
+                                                    </Box>
+                                                }
+                                                arrow
+                                            >
+                                                <HelpOutlineIcon
+                                                    sx={{
+                                                        fontSize: 18,
+                                                        color: 'text.secondary',
+                                                        cursor: 'help',
+                                                    }}
+                                                />
+                                            </Tooltip>
+                                        </Box>
+
+                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <TextField
+                                                fullWidth
+                                                value={folderId}
+                                                onChange={(e) =>
+                                                    setFolderId(e.target.value)
+                                                }
+                                                placeholder='1EHOqUs... или https://drive.google.com/drive/u/0/folders/...'
+                                                disabled={
+                                                    scanning || validating
+                                                }
+                                                onBlur={handleInputBlur}
+                                                error={Boolean(idError)}
+                                                helperText={
+                                                    validating
+                                                        ? 'Проверяем...'
+                                                        : idError ||
+                                                          'ID или полная ссылка на папку'
+                                                }
+                                                sx={{
+                                                    '& .MuiInputBase-root': {
+                                                        fontFamily: 'monospace',
+                                                        fontSize: 13,
+                                                    },
+                                                }}
+                                                InputProps={{
+                                                    endAdornment: validating ? (
+                                                        <Box
+                                                            sx={{
+                                                                display: 'flex',
+                                                                alignItems:
+                                                                    'center',
+                                                            }}
+                                                        >
+                                                            <Box
+                                                                sx={{
+                                                                    width: 16,
+                                                                    height: 16,
+                                                                    border: 2,
+                                                                    borderColor:
+                                                                        'primary.main',
+                                                                    borderTopColor:
+                                                                        'transparent',
+                                                                    borderRadius:
+                                                                        '50%',
+                                                                    animation:
+                                                                        'spin 0.8s linear infinite',
+                                                                    '@keyframes spin':
+                                                                        {
+                                                                            '0%': {
+                                                                                transform:
+                                                                                    'rotate(0deg)',
+                                                                            },
+                                                                            '100%': {
+                                                                                transform:
+                                                                                    'rotate(360deg)',
+                                                                            },
+                                                                        },
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                    ) : null,
+                                                }}
+                                            />
+                                            <FolderSelector
+                                                folderId={folderId}
+                                                isScanning={scanning}
+                                                hasIdError={Boolean(idError)}
+                                                savedFolders={savedFolders}
+                                                onFolderSelect={setFolderId}
+                                                onFoldersUpdate={
+                                                    loadSavedFolders
+                                                }
+                                            />
+                                        </Box>
+                                    </Box>
+
+                                    <Box
+                                        sx={{ display: 'flex', gap: 2, mb: 3 }}
+                                    >
+                                        <Button
+                                            variant='outlined'
+                                            color='error'
+                                            fullWidth
+                                            onClick={handleCancel}
+                                            startIcon={<StopIcon />}
+                                            sx={{
+                                                py: 1.5,
+                                                fontWeight: 600,
+                                                textTransform: 'none',
+                                            }}
+                                        >
+                                            Отменить
+                                        </Button>
+                                        <LogDrawer
+                                            logs={logs}
+                                            isOpen={drawerOpen}
+                                            onOpen={() => {
+                                                setDrawerOpen(true);
+                                                setNewLogsCount(0);
+                                            }}
+                                            onClose={() => setDrawerOpen(false)}
+                                            newLogsCount={newLogsCount}
+                                        />
+                                    </Box>
+
+                                    <Card
+                                        sx={{
+                                            p: 3,
+                                            bgcolor: alpha('#1976d2', 0.05),
+                                            border: 1,
+                                            borderColor: alpha('#1976d2', 0.2),
+                                        }}
+                                    >
+                                        <LinearProgress
+                                            variant={
+                                                hasPrevData
+                                                    ? 'determinate'
+                                                    : 'indeterminate'
+                                            }
+                                            value={
+                                                hasPrevData &&
+                                                estimatedFolders &&
+                                                estimatedFiles
+                                                    ? ((progress.foldersProcessed +
+                                                          progress.filesProcessed /
+                                                              10) /
+                                                          (estimatedFolders +
+                                                              estimatedFiles /
+                                                                  10)) *
+                                                      100
+                                                    : undefined
+                                            }
+                                            sx={{
+                                                height: 8,
+                                                borderRadius: 1,
+                                                bgcolor: alpha('#000', 0.1),
+                                                '& .MuiLinearProgress-bar': {
+                                                    bgcolor: 'primary.main',
+                                                },
+                                            }}
+                                        />
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                mt: 2,
+                                                flexWrap: 'wrap',
+                                                gap: 1,
+                                            }}
+                                        >
+                                            <Chip
+                                                label={`Прошло: ${formatSeconds(elapsedSeconds)}`}
+                                                size='small'
+                                                sx={{ fontWeight: 500 }}
+                                            />
+                                            {etaSeconds !== null && (
+                                                <Chip
+                                                    label={`Осталось ≈ ${formatSeconds(etaSeconds)}`}
+                                                    size='small'
+                                                    color='primary'
+                                                    sx={{ fontWeight: 500 }}
+                                                />
+                                            )}
+                                        </Box>
+                                        <Typography
+                                            variant='caption'
+                                            sx={{
+                                                display: 'block',
+                                                mt: 1.5,
+                                                textAlign: 'center',
+                                                color: 'text.secondary',
+                                            }}
+                                        >
+                                            Обработано:{' '}
+                                            {progress.foldersProcessed} папок /{' '}
+                                            {progress.filesProcessed} файлов
+                                            {hasPrevData &&
+                                                estimatedFolders &&
+                                                estimatedFiles && (
+                                                    <>
+                                                        {' '}
+                                                        / ~{
+                                                            estimatedFolders
+                                                        }{' '}
+                                                        папок / ~
+                                                        {estimatedFiles} файлов
+                                                    </>
+                                                )}
+                                        </Typography>
+                                    </Card>
+                                </Card>
+                            </Box>
+
+                            {/* Tree + Pulse справа на всю высоту */}
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Card
+                                    sx={{
+                                        height: 'calc(100vh - 48px)',
+                                        overflow: 'hidden',
+                                        border: 1,
+                                        borderColor: 'divider',
+                                    }}
+                                >
+                                    <Box sx={{ height: 'calc(100% - 90px)' }}>
+                                        <Tree />
+                                    </Box>
+                                    <Box sx={{ height: 90 }}>
+                                        <ScanPulse />
+                                    </Box>
+                                </Card>
+                            </Box>
+                        </Box>
+                        );
                     </Box>
                 </Card>
             </Box>
