@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Container, Card, Typography, Button, Alert, Box } from '@mui/material';
+import { Alert, Box, Button, Card, Container, Typography } from '@mui/material';
 import { useGlobalContext } from '../../../core/GlobalContext';
 import { FaGoogle } from 'react-icons/fa';
 
