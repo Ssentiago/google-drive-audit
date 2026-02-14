@@ -51,6 +51,7 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
         () => Object.keys(localResult.items).length,
         [localResult]
     );
+
     const employeesCount = useMemo(
         () =>
             Object.keys(localResult.emailIndex).filter((e) => e !== '__link__')
@@ -71,6 +72,59 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
             ),
         [localResult]
     );
+
+    // Статистика по ролям
+    const roleStats = useMemo(() => {
+        const stats = {
+            owners: 0,
+            organizers: 0,
+            editors: 0,
+            commenters: 0,
+            viewers: 0,
+        };
+
+        Object.values(localResult.stats).forEach((s: EmployeeStats) => {
+            stats.owners += s.owners;
+            stats.organizers += s.organizers + s.fileOrganizers;
+            stats.editors += s.editors;
+            stats.commenters += s.commenters;
+            stats.viewers += s.viewers;
+        });
+
+        return stats;
+    }, [localResult]);
+
+    // Данные для PieChart
+    const pieData = useMemo(() => {
+        return [
+            { name: 'Владельцы', value: roleStats.owners, color: '#f44336' },
+            {
+                name: 'Организаторы',
+                value: roleStats.organizers,
+                color: '#ff9800',
+            },
+            { name: 'Редакторы', value: roleStats.editors, color: '#ff9800' },
+            {
+                name: 'Комментаторы',
+                value: roleStats.commenters,
+                color: '#9e9e9e',
+            },
+            { name: 'Просмотр', value: roleStats.viewers, color: '#2196f3' },
+        ].filter((item) => item.value > 0);
+    }, [roleStats]);
+
+    // Топ-10 сотрудников
+    const topEmployees = useMemo(() => {
+        return Object.entries(localResult.emailIndex)
+            .filter(([email]) => email !== '__link__')
+            .map(([email, entries]) => ({
+                email: email.split('@')[0], // только имя до @
+                fullEmail: email,
+                count: entries.length,
+            }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+    }, [localResult]);
 
     const updateResult = (newResult: AuditResult) => {
         const stats: Record<string, EmployeeStats> = {};
@@ -129,6 +183,21 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
         setLogs((p) => [...p, msg]);
     };
 
+    const formatDate = (dateStr: string) => {
+        try {
+            const date = new Date(dateStr);
+            return date.toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
     if (selectedEmployee) {
         return (
             <Box
@@ -178,20 +247,28 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
                     >
                         <ArrowBackIcon />
                     </IconButton>
-                    <Typography
-                        variant='h4'
-                        sx={{
-                            fontWeight: 800,
-                            flex: 1,
-                            background:
-                                'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
-                            backgroundClip: 'text',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}
-                    >
-                        Результаты аудита
-                    </Typography>
+                    <Box sx={{ flex: 1 }}>
+                        <Typography
+                            variant='h4'
+                            sx={{
+                                fontWeight: 800,
+                                background:
+                                    'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+                                backgroundClip: 'text',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                            }}
+                        >
+                            Результаты аудита
+                        </Typography>
+                        <Typography
+                            variant='body2'
+                            color='text.secondary'
+                            sx={{ mt: 0.5 }}
+                        >
+                            Сканирование: {formatDate(localResult.scanDate)}
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 
@@ -372,6 +449,7 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
                         Всего элементов
                     </Typography>
                 </Card>
+
                 <Card
                     sx={{
                         p: 3,
@@ -403,6 +481,125 @@ export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
                         sx={{ fontWeight: 500 }}
                     >
                         Всего доступов
+                    </Typography>
+                </Card>
+            </Box>
+
+            {/* Разбивка по ролям */}
+            <Box
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
+                    gap: 2,
+                    mb: 3,
+                }}
+            >
+                <Card
+                    sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'error.main',
+                        bgcolor: alpha('#f44336', 0.05),
+                    }}
+                >
+                    <Typography
+                        variant='h4'
+                        sx={{ fontWeight: 700, color: 'error.main' }}
+                    >
+                        {roleStats.owners}
+                    </Typography>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        👑 Владельцев
+                    </Typography>
+                </Card>
+                <Card
+                    sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                    }}
+                >
+                    <Typography
+                        variant='h4'
+                        sx={{ fontWeight: 700 }}
+                    >
+                        {roleStats.organizers}
+                    </Typography>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        🔧 Организаторов
+                    </Typography>
+                </Card>
+                <Card
+                    sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'warning.main',
+                        bgcolor: alpha('#ff9800', 0.05),
+                    }}
+                >
+                    <Typography
+                        variant='h4'
+                        sx={{ fontWeight: 700, color: 'warning.main' }}
+                    >
+                        {roleStats.editors}
+                    </Typography>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        ✏️ Редакторов
+                    </Typography>
+                </Card>
+                <Card
+                    sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                    }}
+                >
+                    <Typography
+                        variant='h4'
+                        sx={{ fontWeight: 700 }}
+                    >
+                        {roleStats.commenters}
+                    </Typography>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        💬 Комментаторов
+                    </Typography>
+                </Card>
+                <Card
+                    sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'info.main',
+                        bgcolor: alpha('#2196f3', 0.05),
+                    }}
+                >
+                    <Typography
+                        variant='h4'
+                        sx={{ fontWeight: 700, color: 'info.main' }}
+                    >
+                        {roleStats.viewers}
+                    </Typography>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                    >
+                        👁️ Просмотр
                     </Typography>
                 </Card>
             </Box>
