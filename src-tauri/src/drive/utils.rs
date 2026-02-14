@@ -1,11 +1,16 @@
 use crate::drive::rate_semaphore::{GLOBAL_RATE_LIMITER, GLOBAL_SEMAPHORE};
 use crate::oauth::{get_drive_hub, get_sheets_hub};
 use google_drive3::api::File;
-use google_drive3::DriveHub;
+use governor::clock::DefaultClock;
+use governor::state::{InMemoryState, NotKeyed};
+use governor::{Quota, RateLimiter};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
-use std::pin::Pin;
+use std::num::NonZeroU32;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use tokio::time::{sleep, timeout, Duration};
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -97,6 +102,15 @@ impl DriveItem {
 const MAX_RETRIES: u32 = 10;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_millis(1000);
+
+pub static GLOBAL_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10)));
+pub static GLOBAL_RATE_LIMITER: Lazy<RateLimiter<NotKeyed, InMemoryState, DefaultClock>> =
+    Lazy::new(|| {
+        RateLimiter::direct(
+            Quota::per_second(NonZeroU32::new(20).unwrap())
+                .allow_burst(NonZeroU32::new(30).unwrap()), // burst 30
+        )
+    });
 
 async fn retry_with_backoff<F, Fut, T, E>(
     mut operation: F,
