@@ -226,8 +226,7 @@ const Main = () => {
                     >
                         {features.map((feature, index) => (
                             <Grid
-                                item
-                                xs={6}
+                                size={{ xs: 12, sm: 4 }}
                                 key={index}
                             >
                                 <Card
