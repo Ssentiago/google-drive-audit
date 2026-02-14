@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Box, Paper, Typography, Chip, alpha } from '@mui/material';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { alpha, Box, Chip, Paper, Typography } from '@mui/material';
 import { listen } from '@tauri-apps/api/event';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import WarningIcon from '@mui/icons-material/Warning';
 
 interface ProcessingStatus {
     nodeId: string;
@@ -18,8 +17,11 @@ interface TreeNode {
     hasSuspiciousAccess: boolean;
     suspiciousCount: number;
     path: string;
-    totalItemsInside: number;
-    itemsWithAccessInside: number;
+}
+
+interface ScanProgress {
+    foldersProcessed: number;
+    filesProcessed: number;
 }
 
 interface TreeNodeWithChildren extends TreeNode {
@@ -27,7 +29,6 @@ interface TreeNodeWithChildren extends TreeNode {
     x: number;
     y: number;
     angle: number;
-    collapsed: boolean;
     animProgress: number;
     processingStatus?: string;
 }
@@ -38,7 +39,7 @@ const BASE_RADIUS = 120;
 const LEVEL_OFFSET = 100;
 const LABEL_MIN_ZOOM = 0.8;
 
-const DriveTree = () => {
+const Tree = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [nodes, setNodes] = useState<Map<string, TreeNode>>(new Map());
@@ -56,40 +57,38 @@ const DriveTree = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-    const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(
-        new Set()
-    );
-
-    const animationFrame = useRef<number>(0);
+    const animationFrame = useRef<number>(1);
     const nodeAnimations = useRef<Map<string, number>>(new Map());
     const lastDrawTime = useRef<number>(0);
-    const treeCache = useRef<{
-        tree: TreeNodeWithChildren | null;
-        cacheKey: string;
-    }>({ tree: null, cacheKey: '' });
 
+    const [stats, setStats] = useState<ScanProgress>({
+        foldersProcessed: 0,
+        filesProcessed: 0,
+    });
     useEffect(() => {
-        const unlistenTree = listen<TreeNode>('tree_node', (event) => {
+        const unlistenScanProgress = listen<ScanProgress>(
+            'audit_progress',
+            (event) => {
+                setStats(event.payload);
+            }
+        );
+        const unlistenTree = listen<TreeNode>('audit_tree_node', (event) => {
             const node = event.payload;
-
             setNodes((prev) => {
                 const updated = new Map(prev);
                 updated.set(node.id, node);
                 return updated;
             });
-
             nodeAnimations.current.set(node.id, 0);
-
             if (node.parentId === null) {
                 setRootId(node.id);
             }
         });
 
         const unlistenStatus = listen<ProcessingStatus>(
-            'processing_status',
+            'audit_processing_status',
             (event) => {
                 const { nodeId, status } = event.payload;
-
                 setProcessingStatuses((prev) => {
                     const updated = new Map(prev);
                     if (status === 'done') {
@@ -103,6 +102,7 @@ const DriveTree = () => {
         );
 
         return () => {
+            unlistenScanProgress.then((fn) => fn());
             unlistenTree.then((fn) => fn());
             unlistenStatus.then((fn) => fn());
         };
@@ -110,12 +110,6 @@ const DriveTree = () => {
 
     const buildTree = useCallback((): TreeNodeWithChildren | null => {
         if (!rootId) return null;
-
-        const cacheKey = `${rootId}-${collapsedNodes.size}-${Array.from(collapsedNodes).join(',')}-${processingStatuses.size}`;
-
-        if (treeCache.current.cacheKey === cacheKey && treeCache.current.tree) {
-            return treeCache.current.tree;
-        }
 
         let root: TreeNode | null = null;
         nodes.forEach((node) => {
@@ -135,7 +129,6 @@ const DriveTree = () => {
                 x: 0,
                 y: 0,
                 angle: 0,
-                collapsed: collapsedNodes.has(node.id),
                 animProgress: nodeAnimations.current.get(node.id) || 0,
                 processingStatus: processingStatuses.get(node.id),
             });
@@ -145,16 +138,14 @@ const DriveTree = () => {
             if (node.parentId !== null) {
                 const parent = nodeMap.get(node.parentId);
                 const child = nodeMap.get(node.id);
-                if (parent && child && !parent.collapsed) {
+                if (parent && child) {
                     parent.children.push(child);
                 }
             }
         });
 
-        const tree = nodeMap.get(root.id) || null;
-        treeCache.current = { tree, cacheKey };
-        return tree;
-    }, [rootId, nodes, collapsedNodes, processingStatuses]);
+        return nodeMap.get(root.id) || null;
+    }, [rootId, nodes, processingStatuses]);
 
     const calculatePositions = useCallback(
         (
@@ -169,7 +160,7 @@ const DriveTree = () => {
             node.x = centerX;
             node.y = centerY;
 
-            if (node.children.length === 0 || node.collapsed) return;
+            if (node.children.length === 0) return;
 
             const radius = (BASE_RADIUS + level * LEVEL_OFFSET) * progress;
             const angleStep =
@@ -280,10 +271,6 @@ const DriveTree = () => {
                 ctx.shadowBlur = 20;
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = '#fff';
-            } else if (node.hasSuspiciousAccess) {
-                ctx.fillStyle = '#f44336';
-                ctx.shadowColor = '#f44336';
-                ctx.shadowBlur = 12;
             } else if (node.itemType === 'folder') {
                 ctx.fillStyle = '#1976d2';
                 ctx.shadowColor = '#1976d2';
@@ -305,14 +292,6 @@ const DriveTree = () => {
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 3;
                 ctx.stroke();
-            }
-
-            if (node.collapsed && node.children.length > 0) {
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 10px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('+', node.x, node.y);
             }
 
             if (
@@ -388,7 +367,6 @@ const DriveTree = () => {
         };
     }, [
         nodes,
-        collapsedNodes,
         offset,
         scale,
         hoveredNode,
@@ -491,25 +469,6 @@ const DriveTree = () => {
         setIsDragging(false);
     }, []);
 
-    const handleClick = useCallback(
-        (e: React.MouseEvent<HTMLCanvasElement>) => {
-            if (isDragging) return;
-
-            if (hoveredNode && hoveredNode.itemType === 'folder') {
-                setCollapsedNodes((prev) => {
-                    const updated = new Set(prev);
-                    if (updated.has(hoveredNode.id)) {
-                        updated.delete(hoveredNode.id);
-                    } else {
-                        updated.add(hoveredNode.id);
-                    }
-                    return updated;
-                });
-            }
-        },
-        [isDragging, hoveredNode]
-    );
-
     const handleWheel = useCallback(
         (e: React.WheelEvent<HTMLCanvasElement>) => {
             e.preventDefault();
@@ -524,7 +483,6 @@ const DriveTree = () => {
 
     useEffect(() => {
         const handleResize = () => {
-            treeCache.current = { tree: null, cacheKey: '' };
             drawTree();
         };
         window.addEventListener('resize', handleResize);
@@ -543,23 +501,6 @@ const DriveTree = () => {
         return () => container.removeEventListener('wheel', preventScroll);
     }, []);
 
-    const stats = useMemo(() => {
-        let totalFiles = 0;
-        let totalFolders = 0;
-        let suspiciousItems = 0;
-
-        nodes.forEach((node) => {
-            if (node.itemType === 'file') {
-                totalFiles++;
-            } else {
-                totalFolders++;
-            }
-            if (node.hasSuspiciousAccess) suspiciousItems++;
-        });
-
-        return { totalFiles, totalFolders, suspiciousFiles: suspiciousItems };
-    }, [nodes]);
-
     return (
         <Box
             ref={containerRef}
@@ -577,7 +518,6 @@ const DriveTree = () => {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseLeave}
-                onClick={handleClick}
                 onWheel={handleWheel}
                 style={{
                     width: '100%',
@@ -650,82 +590,22 @@ const DriveTree = () => {
                         </Typography>
                     )}
 
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            gap: 1,
-                            flexWrap: 'wrap',
-                            mb: hoveredNode.itemType === 'folder' ? 1.5 : 0,
-                        }}
-                    >
-                        {hoveredNode.processingStatus && (
-                            <Chip
-                                label={
-                                    hoveredNode.processingStatus ===
-                                    'processing'
-                                        ? 'Обрабатывается'
-                                        : 'В очереди'
-                                }
-                                color={
-                                    hoveredNode.processingStatus ===
-                                    'processing'
-                                        ? 'warning'
-                                        : 'default'
-                                }
-                                size='small'
-                                sx={{ fontWeight: 500 }}
-                            />
-                        )}
-
-                        {hoveredNode.hasSuspiciousAccess && (
-                            <Chip
-                                icon={<WarningIcon sx={{ fontSize: 16 }} />}
-                                label={`${hoveredNode.suspiciousCount} доступ${hoveredNode.suspiciousCount > 1 ? 'а' : ''}`}
-                                color='error'
-                                size='small'
-                                sx={{ fontWeight: 500 }}
-                            />
-                        )}
-                    </Box>
-
-                    {hoveredNode.itemType === 'folder' && (
-                        <Typography
-                            variant='caption'
-                            sx={{
-                                display: 'block',
-                                color: 'primary.main',
-                                fontWeight: 500,
-                                textAlign: 'center',
-                                mt: 1,
-                                pt: 1,
-                                borderTop: 1,
-                                borderColor: 'divider',
-                            }}
-                        >
-                            Клик →{' '}
-                            {collapsedNodes.has(hoveredNode.id)
-                                ? 'развернуть'
-                                : 'свернуть'}
-                        </Typography>
+                    {hoveredNode.processingStatus && (
+                        <Chip
+                            label={
+                                hoveredNode.processingStatus === 'processing'
+                                    ? 'Обрабатывается'
+                                    : 'В очереди'
+                            }
+                            color={
+                                hoveredNode.processingStatus === 'processing'
+                                    ? 'warning'
+                                    : 'default'
+                            }
+                            size='small'
+                            sx={{ fontWeight: 500 }}
+                        />
                     )}
-
-                    {hoveredNode.itemType === 'folder' &&
-                        hoveredNode.totalItemsInside > 0 && (
-                            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                                <Chip
-                                    label={`${hoveredNode.totalItemsInside} объектов`}
-                                    size='small'
-                                    variant='outlined'
-                                />
-                                {hoveredNode.itemsWithAccessInside > 0 && (
-                                    <Chip
-                                        label={`${hoveredNode.itemsWithAccessInside} с доступами`}
-                                        size='small'
-                                        color='warning'
-                                    />
-                                )}
-                            </Box>
-                        )}
                 </Paper>
             )}
 
@@ -756,26 +636,11 @@ const DriveTree = () => {
                     sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}
                 >
                     <Typography variant='body2'>
-                        <strong>{stats.totalFolders}</strong> папок
+                        <strong>{stats.foldersProcessed}</strong> папок
                     </Typography>
                     <Typography variant='body2'>
-                        <strong>{stats.totalFiles}</strong> файлов
+                        <strong>{stats.filesProcessed}</strong> файлов
                     </Typography>
-                    {stats.suspiciousFiles > 0 && (
-                        <Typography
-                            variant='body2'
-                            sx={{ color: 'error.main', fontWeight: 500 }}
-                        >
-                            <WarningIcon
-                                sx={{
-                                    fontSize: 14,
-                                    mr: 0.5,
-                                    verticalAlign: 'middle',
-                                }}
-                            />
-                            <strong>{stats.suspiciousFiles}</strong> с доступами
-                        </Typography>
-                    )}
                 </Box>
             </Paper>
 
@@ -837,16 +702,10 @@ const DriveTree = () => {
                                 width: 12,
                                 height: 12,
                                 borderRadius: '50%',
-                                bgcolor: '#f44336',
-                                boxShadow: `0 0 8px ${alpha('#f44336', 0.5)}`,
+                                bgcolor: '#757575',
                             }}
                         />
-                        <Typography
-                            variant='caption'
-                            sx={{ color: 'error.main', fontWeight: 500 }}
-                        >
-                            Подозрительные
-                        </Typography>
+                        <Typography variant='caption'>Файлы</Typography>
                     </Box>
                 </Box>
             </Paper>
@@ -854,4 +713,4 @@ const DriveTree = () => {
     );
 };
 
-export default DriveTree;
+export default Tree;

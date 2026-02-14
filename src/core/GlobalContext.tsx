@@ -1,9 +1,9 @@
 import React, {
     createContext,
-    useContext,
-    useState,
-    useMemo,
     useCallback,
+    useContext,
+    useMemo,
+    useState,
 } from 'react';
 
 type GlobalContextProps = {

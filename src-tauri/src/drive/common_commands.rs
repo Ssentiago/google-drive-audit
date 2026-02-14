@@ -1,4 +1,3 @@
-use crate::drive::custom_property::update_custom_property;
 use crate::drive::utils::{get_item, list_folder_contents, DriveItem};
 use crate::oauth::get_drive_hub;
 use google_drive3::api::File;
@@ -216,27 +215,16 @@ pub async fn copy_and_clean(
     )
     .await?;
 
-    let copy_item = get_item(app.clone(), &new_id).await?;
-    let original_item = get_item(app.clone(), &item_id).await?;
+    let mut copy_item = get_item(app.clone(), &new_id).await?;
+    let mut original_item = get_item(app.clone(), &item_id).await?;
 
-    update_custom_property(
-        app.clone(),
-        &item_id,
-        hashmap! {
-            "is_copied" => "true",
-            "copy_item_id" => &new_id
-        },
-    )
-    .await?;
+    original_item.set_property(String::from("is_copied"), String::from("true"));
+    original_item.set_property(String::from("copy_item_id"), String::from(new_id.clone()));
 
-    update_custom_property(
-        app.clone(),
-        &new_id,
-        hashmap! {
-            "original_item_id" => item_id.as_str()
-        },
-    )
-    .await?;
+    copy_item.set_property(String::from("original_item_id"), item_id.clone());
+
+    original_item.sync_properties().await?;
+    copy_item.sync_properties().await?;
 
     window
         .emit("scan_log", &format!("✅ Готово: {}", new_name))

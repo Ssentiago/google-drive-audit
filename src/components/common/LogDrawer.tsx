@@ -14,7 +14,12 @@ import TerminalIcon from '@mui/icons-material/Terminal';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import { AutoSizer, List } from 'react-virtualized';
+import {
+    AutoSizer,
+    List,
+    CellMeasurer,
+    CellMeasurerCache,
+} from 'react-virtualized';
 
 interface LogDrawerProps {
     logs: string[];
@@ -35,11 +40,27 @@ const LogDrawer: React.FC<LogDrawerProps> = ({
     const [autoScroll, setAutoScroll] = useState(true);
     const [copied, setCopied] = useState(false);
 
+    // Cache для динамической высоты строк
+    const cacheRef = useRef(
+        new CellMeasurerCache({
+            fixedWidth: true,
+            defaultHeight: 25,
+        })
+    );
+
     useEffect(() => {
         if (listRef.current && autoScroll && logs.length > 0) {
             listRef.current.scrollToRow(logs.length - 1);
         }
     }, [logs, autoScroll]);
+
+    // Очищаем cache при изменении логов
+    useEffect(() => {
+        cacheRef.current.clearAll();
+        if (listRef.current) {
+            listRef.current.recomputeRowHeights();
+        }
+    }, [logs]);
 
     const handleScroll = ({ scrollTop, clientHeight, scrollHeight }: any) => {
         const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
@@ -72,7 +93,7 @@ const LogDrawer: React.FC<LogDrawerProps> = ({
 
     const stats = getLogStats();
 
-    const rowRenderer = ({ index, key, style }: any) => {
+    const rowRenderer = ({ index, key, style, parent }: any) => {
         const log = logs[index];
         let color = '#d4d4d4';
         if (log.includes('✅')) color = '#4caf50';
@@ -81,12 +102,26 @@ const LogDrawer: React.FC<LogDrawerProps> = ({
         if (log.includes('⚠️')) color = '#ff9800';
 
         return (
-            <div
+            <CellMeasurer
                 key={key}
-                style={{ ...style, color, paddingRight: 10 }}
+                cache={cacheRef.current}
+                parent={parent}
+                columnIndex={0}
+                rowIndex={index}
             >
-                {log}
-            </div>
+                <div
+                    style={{
+                        ...style,
+                        color,
+                        paddingRight: 10,
+                        wordWrap: 'break-word',
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: 1.6,
+                    }}
+                >
+                    {log}
+                </div>
+            </CellMeasurer>
         );
     };
 
@@ -145,7 +180,7 @@ const LogDrawer: React.FC<LogDrawerProps> = ({
                             variant='h6'
                             sx={{ fontWeight: 700 }}
                         >
-                            Логи сканирования
+                            Логи операций
                         </Typography>
                         <Chip
                             label={logs.length}
@@ -245,13 +280,17 @@ const LogDrawer: React.FC<LogDrawerProps> = ({
                                             height={height}
                                             width={width}
                                             rowCount={logs.length}
-                                            rowHeight={25}
+                                            deferredMeasurementCache={
+                                                cacheRef.current
+                                            }
+                                            rowHeight={
+                                                cacheRef.current.rowHeight
+                                            }
                                             rowRenderer={rowRenderer}
                                             onScroll={handleScroll}
                                             style={{
                                                 fontFamily: 'monospace',
                                                 fontSize: 13,
-                                                lineHeight: 1.6,
                                             }}
                                         />
                                     )}

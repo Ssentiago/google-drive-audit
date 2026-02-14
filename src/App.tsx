@@ -1,15 +1,11 @@
-import { Box, CircularProgress } from '@mui/material';
-import { ScanProvider } from './core/ScanContext.tsx';
 import Auth from './components/pages/Auth/Auth.tsx';
 import Main from './components/pages/Main/Main.tsx';
 import { useGlobalContext } from './core/GlobalContext.tsx';
 import React, { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import DirectScan from './components/pages/modes/DirectScan/DirectScan.tsx';
-import DriveScan from './components/pages/modes/DriveScan/DriveScan.tsx';
-import AccessList from './components/pages/modes/DriveScan/components/AccessList/AccessList.tsx';
 import About from './components/pages/About/About.tsx';
-import { DriveAudit } from './components/pages/modes/DriveAudit/DriveAudit.tsx';
+import SplashScreen from './components/common/SplashScreen.tsx';
+import { Audit } from './components/pages/Audit/Audit.tsx';
 
 const App: React.FC = () => {
     const { currentPage, setCurrentPage, setUserEmail } = useGlobalContext();
@@ -34,7 +30,7 @@ const App: React.FC = () => {
     }, []);
 
     if (isLoading) {
-        return null;
+        return <SplashScreen />;
     }
 
     if (
@@ -53,16 +49,12 @@ const App: React.FC = () => {
     }
 
     return (
-        <ScanProvider>
+        <>
             {currentPage === 'login' && <Auth />}
-
             {currentPage === 'main' && <Main />}
-            {currentPage === 'direct-scan' && <DirectScan />}
-            {currentPage === 'drive-scan' && <DriveScan />}
-            {currentPage === 'access-list' && <AccessList />}
             {currentPage === 'about' && <About />}
-            {currentPage === 'audit' && <DriveAudit />}
-        </ScanProvider>
+            {currentPage === 'audit' && <Audit />}
+        </>
     );
 };
 

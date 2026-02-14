@@ -1,11 +1,16 @@
-use crate::drive::rate_semaphore::{GLOBAL_RATE_LIMITER, GLOBAL_SEMAPHORE};
-use crate::oauth::{get_drive_hub, get_sheets_hub};
+use crate::app_handle_storage::get_app_handle;
+use crate::oauth::get_drive_hub;
 use google_drive3::api::File;
-use google_drive3::DriveHub;
+use governor::clock::DefaultClock;
+use governor::state::{InMemoryState, NotKeyed};
+use governor::{Quota, RateLimiter};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
-use std::pin::Pin;
+use std::num::NonZeroU32;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use tokio::time::{sleep, timeout, Duration};
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -58,7 +63,8 @@ impl DriveItem {
         self.properties.remove(key);
     }
 
-    pub async fn sync_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+    pub async fn sync_properties(&mut self) -> Result<(), String> {
+        let app = get_app_handle();
         let hub = get_drive_hub(&app).await?;
 
         let file_id = self.id.as_ref().ok_or("No file ID")?;
@@ -76,7 +82,8 @@ impl DriveItem {
         Ok(())
     }
 
-    pub async fn fetch_properties(&mut self, app: tauri::AppHandle) -> Result<(), String> {
+    pub async fn fetch_properties(&mut self) -> Result<(), String> {
+        let app = get_app_handle();
         let hub = get_drive_hub(&app).await?;
 
         let file_id = self.id.as_ref().ok_or("No file ID")?;
@@ -97,6 +104,15 @@ impl DriveItem {
 const MAX_RETRIES: u32 = 10;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_millis(1000);
+
+pub static GLOBAL_SEMAPHORE: Lazy<Arc<Semaphore>> = Lazy::new(|| Arc::new(Semaphore::new(10)));
+pub static GLOBAL_RATE_LIMITER: Lazy<RateLimiter<NotKeyed, InMemoryState, DefaultClock>> =
+    Lazy::new(|| {
+        RateLimiter::direct(
+            Quota::per_second(NonZeroU32::new(20).unwrap())
+                .allow_burst(NonZeroU32::new(30).unwrap()), // burst 30
+        )
+    });
 
 async fn retry_with_backoff<F, Fut, T, E>(
     mut operation: F,
@@ -223,8 +239,7 @@ pub async fn list_folder_contents(
                     .list()
                     .q(&format!("'{}' in parents and trashed=false", folder_id))
                     .add_scope("https://www.googleapis.com/auth/drive")
-                    .param("fields", "nextPageToken,files(id,name,mimeType,webViewLink,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress))")
-                    .page_size(1000)
+                    .param("fields", "nextPageToken,files(id,name,mimeType,webViewLink,parents,permissions(id,emailAddress,role,type,displayName),owners(emailAddress),properties)")                    .page_size(1000)
                     .supports_all_drives(true)
                     .include_items_from_all_drives(true);
 

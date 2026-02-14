@@ -1,0 +1,417 @@
+import React, { useMemo, useState } from 'react';
+import {
+    alpha,
+    Box,
+    Card,
+    IconButton,
+    Tab,
+    Tabs,
+    Typography,
+} from '@mui/material';
+import {
+    ArrowBack as ArrowBackIcon,
+    Assessment as AssessmentIcon,
+    DeleteSweep as DeleteSweepIcon,
+    Link as LinkIcon,
+    People as PeopleIcon,
+} from '@mui/icons-material';
+import { AuditResult, EmployeeStats } from '../types/interfaces.ts';
+import EmployeeDetailView from './Views/EmployeeDetailView.tsx';
+import LinksView from './Views/LinksView.tsx';
+import CopiedItemsView from './Views/CopiedItemsView.tsx';
+import EmployeesView from './Views/EmployeeView.tsx';
+
+interface Props {
+    result: AuditResult;
+    onBack: () => void;
+}
+
+export const AuditResults: React.FC<Props> = ({ result, onBack }) => {
+    const [activeTab, setActiveTab] = useState<
+        'employees' | 'links' | 'copied'
+    >('employees');
+    const [selectedEmployee, setSelectedEmployee] = useState<string | null>(
+        null
+    );
+    const [bulkMode, setBulkMode] = useState(false);
+    const [bulkEmailsInput, setBulkEmailsInput] = useState('');
+    const [employeesScrollOffset, setEmployeesScrollOffset] = useState(0);
+    const [logs, setLogs] = useState<string[]>([]);
+    const [localResult, setLocalResult] = useState(result);
+
+    const copiedCount = useMemo(() => {
+        if (!localResult) return 0;
+        return Object.values(localResult.items).filter(
+            (item: any) => item.properties.is_copied === 'true'
+        ).length;
+    }, [localResult]);
+
+    const totalItems = Object.keys(localResult.items).length;
+    const employeesCount = Object.keys(localResult.emailIndex).filter(
+        (e) => e !== '__link__'
+    ).length;
+    const linksCount = (localResult.emailIndex['__link__'] || []).length;
+
+    const updateResult = (newResult: AuditResult) => {
+        const stats: Record<string, EmployeeStats> = {};
+
+        Object.entries(newResult.emailIndex).forEach(([email, entries]) => {
+            const s: EmployeeStats = {
+                totalItems: entries.length,
+                owners: 0,
+                organizers: 0,
+                fileOrganizers: 0,
+                editors: 0,
+                commenters: 0,
+                viewers: 0,
+                linkAccesses: 0,
+            };
+
+            entries.forEach(([itemId, permIdx]) => {
+                const item = newResult.items[itemId];
+                if (!item) return;
+                const perm = item.permissions[permIdx];
+                if (!perm) return;
+
+                if (perm.isLink) {
+                    s.linkAccesses += 1;
+                } else {
+                    switch (perm.role) {
+                        case 'owner':
+                            s.owners += 1;
+                            break;
+                        case 'organizer':
+                            s.organizers += 1;
+                            break;
+                        case 'fileOrganizer':
+                            s.fileOrganizers += 1;
+                            break;
+                        case 'editor':
+                            s.editors += 1;
+                            break;
+                        case 'commenter':
+                            s.commenters += 1;
+                            break;
+                        case 'viewer':
+                            s.viewers += 1;
+                            break;
+                    }
+                }
+            });
+
+            stats[email] = s;
+        });
+
+        setLocalResult({ ...newResult, stats });
+    };
+
+    const addLog = (msg: string) => {
+        setLogs((p) => [...p, msg]);
+    };
+
+    if (selectedEmployee) {
+        return (
+            <Box
+                sx={{
+                    minHeight: '100vh',
+                    background: (theme) =>
+                        `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
+                    p: 3,
+                }}
+            >
+                <EmployeeDetailView
+                    email={selectedEmployee}
+                    result={localResult}
+                    onBack={() => setSelectedEmployee(null)}
+                    onLogsUpdate={addLog}
+                    logs={logs}
+                    onResultUpdate={updateResult}
+                />
+            </Box>
+        );
+    }
+
+    return (
+        <Box
+            sx={{
+                minHeight: '100vh',
+                background: (theme) =>
+                    `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
+                p: 3,
+            }}
+        >
+            <Box sx={{ mb: 3 }}>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        mb: 2,
+                    }}
+                >
+                    <IconButton
+                        onClick={onBack}
+                        sx={{
+                            bgcolor: alpha('#1976d2', 0.1),
+                            '&:hover': { bgcolor: alpha('#1976d2', 0.2) },
+                        }}
+                    >
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography
+                        variant='h4'
+                        sx={{
+                            fontWeight: 800,
+                            flex: 1,
+                            background:
+                                'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+                            backgroundClip: 'text',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                        }}
+                    >
+                        Результаты аудита
+                    </Typography>
+                </Box>
+            </Box>
+
+            <Box
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 2,
+                    mb: 3,
+                }}
+            >
+                <Card
+                    sx={{
+                        p: 3,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                            borderColor: 'primary.main',
+                            transform: 'translateY(-2px)',
+                        },
+                    }}
+                    onClick={() => setActiveTab('employees')}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1,
+                            mb: 1,
+                        }}
+                    >
+                        <PeopleIcon
+                            sx={{ color: 'primary.main', fontSize: 28 }}
+                        />
+                        <Typography
+                            variant='h3'
+                            sx={{ fontWeight: 700 }}
+                        >
+                            {employeesCount}
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ fontWeight: 500 }}
+                    >
+                        Сотрудников
+                    </Typography>
+                </Card>
+
+                <Card
+                    sx={{
+                        p: 3,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                            borderColor: 'primary.main',
+                            transform: 'translateY(-2px)',
+                        },
+                    }}
+                    onClick={() => setActiveTab('links')}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1,
+                            mb: 1,
+                        }}
+                    >
+                        <LinkIcon
+                            sx={{ color: 'primary.main', fontSize: 28 }}
+                        />
+                        <Typography
+                            variant='h3'
+                            sx={{ fontWeight: 700 }}
+                        >
+                            {linksCount}
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ fontWeight: 500 }}
+                    >
+                        Ссылок
+                    </Typography>
+                </Card>
+
+                <Card
+                    sx={{
+                        p: 3,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor:
+                            copiedCount > 0 ? 'warning.main' : 'divider',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        bgcolor:
+                            copiedCount > 0
+                                ? alpha('#ff9800', 0.05)
+                                : 'transparent',
+                        '&:hover': {
+                            borderColor: 'warning.main',
+                            transform: 'translateY(-2px)',
+                        },
+                    }}
+                    onClick={() => setActiveTab('copied')}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1,
+                            mb: 1,
+                        }}
+                    >
+                        <DeleteSweepIcon
+                            sx={{ color: 'warning.main', fontSize: 28 }}
+                        />
+                        <Typography
+                            variant='h3'
+                            sx={{ fontWeight: 700 }}
+                        >
+                            {copiedCount}
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ fontWeight: 500 }}
+                    >
+                        К удалению
+                    </Typography>
+                </Card>
+
+                <Card
+                    sx={{
+                        p: 3,
+                        textAlign: 'center',
+                        border: 1,
+                        borderColor: 'divider',
+                    }}
+                >
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 1,
+                            mb: 1,
+                        }}
+                    >
+                        <AssessmentIcon
+                            sx={{ color: 'primary.main', fontSize: 28 }}
+                        />
+                        <Typography
+                            variant='h3'
+                            sx={{ fontWeight: 700 }}
+                        >
+                            {totalItems}
+                        </Typography>
+                    </Box>
+                    <Typography
+                        variant='body2'
+                        color='text.secondary'
+                        sx={{ fontWeight: 500 }}
+                    >
+                        Всего элементов
+                    </Typography>
+                </Card>
+            </Box>
+
+            <Card sx={{ mb: 2 }}>
+                <Tabs
+                    value={activeTab}
+                    onChange={(_, v) => setActiveTab(v)}
+                    sx={{
+                        borderBottom: 1,
+                        borderColor: 'divider',
+                        '& .MuiTab-root': {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            fontSize: 16,
+                        },
+                    }}
+                >
+                    <Tab
+                        label={`Сотрудники (${employeesCount})`}
+                        value='employees'
+                    />
+                    <Tab
+                        label={`Ссылки (${linksCount})`}
+                        value='links'
+                    />
+                    <Tab
+                        label={`К удалению (${copiedCount})`}
+                        value='copied'
+                        sx={{
+                            color: copiedCount > 0 ? 'warning.main' : undefined,
+                        }}
+                    />
+                </Tabs>
+            </Card>
+
+            {activeTab === 'employees' ? (
+                <EmployeesView
+                    result={localResult}
+                    onSelectEmployee={setSelectedEmployee}
+                    onLogsUpdate={addLog}
+                    logs={logs}
+                    bulkMode={bulkMode}
+                    onBulkModeChange={setBulkMode}
+                    bulkEmailsInput={bulkEmailsInput}
+                    onBulkEmailsInputChange={setBulkEmailsInput}
+                    scrollOffset={employeesScrollOffset}
+                    onScrollOffsetChange={setEmployeesScrollOffset}
+                />
+            ) : activeTab === 'links' ? (
+                <LinksView
+                    result={localResult}
+                    onLogsUpdate={addLog}
+                />
+            ) : (
+                <CopiedItemsView
+                    result={localResult}
+                    onLogsUpdate={addLog}
+                    onResultUpdate={updateResult}
+                    logs={logs}
+                />
+            )}
+        </Box>
+    );
+};

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
     Container,
     Card,
@@ -6,36 +7,40 @@ import {
     Box,
     IconButton,
     alpha,
+    Divider,
+    Stack,
+    Chip,
 } from '@mui/material';
 import { useGlobalContext } from '../../../core/GlobalContext';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SecurityIcon from '@mui/icons-material/Security';
-import SpeedIcon from '@mui/icons-material/Speed';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import CodeIcon from '@mui/icons-material/Code';
+import TelegramIcon from '@mui/icons-material/Telegram';
 import { invoke } from '@tauri-apps/api/core';
 
 const About = () => {
     const { setCurrentPage } = useGlobalContext();
+    const [version, setVersion] = useState<string>('...');
 
-    const features = [
-        {
-            icon: <SecurityIcon sx={{ fontSize: 32, color: 'primary.main' }} />,
-            title: 'Безопасность',
-            description: 'Контроль доступов и защита конфиденциальных данных',
-        },
-        {
-            icon: <SpeedIcon sx={{ fontSize: 32, color: 'primary.main' }} />,
-            title: 'Скорость',
-            description: 'Быстрое сканирование и массовая обработка файлов',
-        },
-        {
-            icon: (
-                <VisibilityIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-            ),
-            title: 'Прозрачность',
-            description: 'Полная видимость структуры доступов и аудит действий',
-        },
+    useEffect(() => {
+        loadVersion();
+    }, []);
+
+    const loadVersion = async () => {
+        try {
+            const v = await invoke<string>('get_app_version');
+            setVersion(v);
+        } catch (e) {
+            console.error('Failed to get version:', e);
+            setVersion('unknown');
+        }
+    };
+
+    const techStack = [
+        'Rust + Tauri',
+        'React + TypeScript',
+        'Material UI',
+        'Google Drive API',
     ];
 
     return (
@@ -47,203 +52,224 @@ const About = () => {
                 alignItems: 'center',
                 py: 4,
                 background: (theme) =>
-                    `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 1)} 100%)`,
+                    `radial-gradient(ellipse at top, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${theme.palette.background.default} 50%)`,
             }}
         >
             <Container maxWidth='sm'>
                 <Card
                     sx={{
-                        p: 5,
+                        p: 4,
                         borderRadius: 3,
                         boxShadow: (theme) =>
                             `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
                     }}
                 >
                     {/* Header */}
-                    <Box sx={{ mb: 4 }}>
-                        <Box
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            mb: 3,
+                        }}
+                    >
+                        <IconButton
+                            onClick={() => setCurrentPage('main')}
                             sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                mb: 2,
+                                bgcolor: alpha('#1976d2', 0.1),
+                                '&:hover': {
+                                    bgcolor: alpha('#1976d2', 0.2),
+                                },
                             }}
                         >
-                            <IconButton
-                                onClick={() => setCurrentPage('main')}
-                                sx={{
-                                    bgcolor: alpha('#1976d2', 0.1),
-                                    '&:hover': {
-                                        bgcolor: alpha('#1976d2', 0.2),
-                                    },
-                                }}
+                            <ArrowBackIcon />
+                        </IconButton>
+                        <Box sx={{ flex: 1 }}>
+                            <Typography
+                                variant='h5'
+                                sx={{ fontWeight: 700 }}
                             >
-                                <ArrowBackIcon />
-                            </IconButton>
+                                О приложении
+                            </Typography>
                         </Box>
-
-                        <Typography
-                            variant='h3'
-                            component='h1'
+                        <Chip
+                            label={`v${version}`}
+                            size='small'
+                            variant='outlined'
                             sx={{
-                                mb: 1.5,
-                                fontWeight: 800,
-                                textAlign: 'center',
-                                background:
-                                    'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
-                                backgroundClip: 'text',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
+                                fontWeight: 600,
+                                fontFamily: 'monospace',
                             }}
-                        >
-                            Google Drive Audit
-                        </Typography>
-
-                        <Typography
-                            variant='h6'
-                            sx={{
-                                textAlign: 'center',
-                                color: 'text.secondary',
-                                fontWeight: 400,
-                            }}
-                        >
-                            Инструмент для аудита и очистки доступов
-                        </Typography>
+                        />
                     </Box>
 
+                    <Divider sx={{ mb: 3 }} />
+
                     {/* Description */}
-                    <Box sx={{ mb: 4 }}>
+                    <Box sx={{ mb: 3 }}>
                         <Typography
                             variant='body1'
                             sx={{
                                 mb: 2,
-                                lineHeight: 1.8,
+                                lineHeight: 1.7,
                                 color: 'text.primary',
-                                textAlign: 'center',
                             }}
                         >
-                            Централизованное управление доступами к Google Drive
-                            — отзывайте права сотрудников и закрывайте публичные
-                            ссылки в несколько кликов.
+                            Инструмент для аудита и управления доступами в
+                            Google Drive. Позволяет быстро найти файлы
+                            сотрудника, отозвать права и закрыть публичные
+                            ссылки.
                         </Typography>
                         <Typography
                             variant='body2'
                             sx={{
                                 color: 'text.secondary',
-                                lineHeight: 1.7,
-                                textAlign: 'center',
+                                lineHeight: 1.6,
                             }}
                         >
-                            Быстрый аудит файлов, массовая обработка доступов и
-                            полный контроль над безопасностью ваших данных.
+                            Поддерживает массовые операции, экспорт в таблицы и
+                            работу с копиями файлов владельцев.
                         </Typography>
                     </Box>
 
-                    {/* Features */}
-                    <Box sx={{ mb: 4 }}>
-                        <Box
+                    <Divider sx={{ mb: 3 }} />
+
+                    {/* Tech Stack */}
+                    <Box sx={{ mb: 3 }}>
+                        <Typography
+                            variant='subtitle2'
                             sx={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(3, 1fr)',
-                                gap: 2,
+                                mb: 1.5,
+                                fontWeight: 600,
+                                color: 'text.secondary',
+                                textTransform: 'uppercase',
+                                fontSize: 11,
+                                letterSpacing: 1,
                             }}
                         >
-                            {features.map((feature, index) => (
-                                <Card
-                                    key={index}
+                            Технологии
+                        </Typography>
+                        <Stack
+                            direction='row'
+                            spacing={1}
+                            flexWrap='wrap'
+                            sx={{ gap: 1 }}
+                        >
+                            {techStack.map((tech) => (
+                                <Chip
+                                    key={tech}
+                                    label={tech}
+                                    size='small'
+                                    icon={<CodeIcon sx={{ fontSize: 14 }} />}
                                     sx={{
-                                        p: 2,
-                                        textAlign: 'center',
+                                        bgcolor: alpha('#1976d2', 0.08),
                                         border: 1,
-                                        borderColor: 'divider',
-                                        transition: 'all 0.2s',
-                                        '&:hover': {
-                                            borderColor: 'primary.main',
-                                            transform: 'translateY(-4px)',
-                                            boxShadow: (theme) =>
-                                                `0 4px 20px ${alpha(theme.palette.primary.main, 0.15)}`,
-                                        },
+                                        borderColor: alpha('#1976d2', 0.15),
+                                        fontWeight: 500,
+                                        fontSize: 12,
                                     }}
-                                >
-                                    <Box
-                                        sx={{
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            mb: 1.5,
-                                        }}
-                                    >
-                                        {feature.icon}
-                                    </Box>
-                                    <Typography
-                                        variant='subtitle2'
-                                        sx={{
-                                            fontWeight: 600,
-                                            mb: 0.5,
-                                        }}
-                                    >
-                                        {feature.title}
-                                    </Typography>
-                                    <Typography
-                                        variant='caption'
-                                        sx={{
-                                            color: 'text.secondary',
-                                            display: 'block',
-                                            lineHeight: 1.4,
-                                        }}
-                                    >
-                                        {feature.description}
-                                    </Typography>
-                                </Card>
+                                />
                             ))}
-                        </Box>
+                        </Stack>
                     </Box>
+
+                    <Divider sx={{ mb: 3 }} />
+
+                    {/* Developer Info */}
+                    <Box sx={{ mb: 3 }}>
+                        <Typography
+                            variant='subtitle2'
+                            sx={{
+                                mb: 1.5,
+                                fontWeight: 600,
+                                color: 'text.secondary',
+                                textTransform: 'uppercase',
+                                fontSize: 11,
+                                letterSpacing: 1,
+                            }}
+                        >
+                            Разработчик
+                        </Typography>
+                        <Box sx={{ mb: 2 }}>
+                            <Typography
+                                variant='body1'
+                                sx={{
+                                    fontWeight: 600,
+                                    mb: 0.5,
+                                }}
+                            >
+                                Арсений Баиадзе
+                            </Typography>
+                            <Typography
+                                variant='caption'
+                                sx={{
+                                    color: 'text.secondary',
+                                }}
+                            >
+                                Full-stack разработчик
+                            </Typography>
+                        </Box>
+                        <Stack
+                            direction='row'
+                            spacing={1.5}
+                        >
+                            <Button
+                                variant='outlined'
+                                size='small'
+                                startIcon={<TelegramIcon />}
+                                onClick={async () => {
+                                    await invoke('open_url', {
+                                        url: 'https://t.me/Sentiago',
+                                    });
+                                }}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    flex: 1,
+                                }}
+                            >
+                                @Sentiago
+                            </Button>
+                            <Button
+                                variant='outlined'
+                                size='small'
+                                endIcon={
+                                    <OpenInNewIcon sx={{ fontSize: 16 }} />
+                                }
+                                onClick={async () => {
+                                    await invoke('open_url', {
+                                        url: 'https://itego.pro',
+                                    });
+                                }}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    flex: 1,
+                                }}
+                            >
+                                itego.pro
+                            </Button>
+                        </Stack>
+                    </Box>
+
+                    <Divider sx={{ mb: 3 }} />
 
                     {/* Footer */}
                     <Box
                         sx={{
+                            pt: 3,
+                            borderTop: 1,
+                            borderColor: 'divider',
                             textAlign: 'center',
-                            py: 3,
-                            px: 2,
-                            bgcolor: alpha('#1976d2', 0.05),
-                            borderRadius: 2,
-                            mb: 3,
                         }}
                     >
                         <Typography
-                            variant='body2'
-                            sx={{
-                                mb: 1,
-                                fontWeight: 600,
-                                color: 'text.primary',
-                            }}
-                        >
-                            Разработчик: Арсений Баиадзе
-                        </Typography>
-                        <Button
-                            variant='text'
-                            endIcon={<OpenInNewIcon sx={{ fontSize: 16 }} />}
-                            onClick={async () => {
-                                await invoke('open_url', {
-                                    url: 'https://itego.pro',
-                                });
-                            }}
-                            sx={{
-                                textTransform: 'none',
-                                fontWeight: 500,
-                                fontSize: 14,
-                            }}
-                        >
-                            itego.pro
-                        </Button>
-                        <Typography
                             variant='caption'
                             sx={{
-                                display: 'block',
-                                mt: 1,
                                 color: 'text.disabled',
                             }}
                         >
-                            © 2025 Все права защищены
+                            © 2025 • Защищено OAuth 2.0
                         </Typography>
                     </Box>
                 </Card>
