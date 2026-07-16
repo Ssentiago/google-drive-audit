@@ -6,8 +6,8 @@ authors = [ "Sentiago" ]
 edition = "2021"
 
 [build-dependencies.tauri-build]
-version = "2.0.0"
-features = [ ]
+version = "2.6.3"
+features = []
 
 [dependencies]
 tokio-util = "0.7"
@@ -38,7 +38,7 @@ maplit = "1.0.2"
   features = [ "json", "stream" ]
 
   [dependencies.tauri]
-  version = "2.9.0"
+  version = "2.11.5"
   features = [ ]
 
   [dependencies.serde]
