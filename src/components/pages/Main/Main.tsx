@@ -18,6 +18,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import { invoke } from '@tauri-apps/api/core';
 import { useGlobalContext } from '../../../core/GlobalContext.tsx';
+import UpdateBanner from '../../common/UpdateBanner.tsx';
 
 const Main = () => {
     const { setCurrentPage, userEmail } = useGlobalContext();
@@ -120,6 +121,7 @@ const Main = () => {
                     </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <UpdateBanner autoCheck={true} compact={true} />
                     <Chip
                         label={userEmail}
                         size='medium'

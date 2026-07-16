@@ -16,7 +16,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CodeIcon from '@mui/icons-material/Code';
 import TelegramIcon from '@mui/icons-material/Telegram';
+import SystemUpdateIcon from '@mui/icons-material/SystemUpdate';
 import { invoke } from '@tauri-apps/api/core';
+import UpdateBanner from '../../common/UpdateBanner.tsx';
 
 const About = () => {
     const { setCurrentPage } = useGlobalContext();
@@ -175,6 +177,26 @@ const About = () => {
 
                     <Divider sx={{ mb: 3 }} />
 
+                    {/* Updates */}
+                    <Box sx={{ mb: 3 }}>
+                        <Typography
+                            variant='subtitle2'
+                            sx={{
+                                mb: 1.5,
+                                fontWeight: 600,
+                                color: 'text.secondary',
+                                textTransform: 'uppercase',
+                                fontSize: 11,
+                                letterSpacing: 1,
+                            }}
+                        >
+                            Обновления
+                        </Typography>
+                        <UpdateBanner autoCheck={false} showButton={true} />
+                    </Box>
+
+                    <Divider sx={{ mb: 3 }} />
+
                     {/* Developer Info */}
                     <Box sx={{ mb: 3 }}>
                         <Typography
@@ -198,7 +220,7 @@ const About = () => {
                                     mb: 0.5,
                                 }}
                             >
-                                Арсений Баиадзе
+                                Sentiago
                             </Typography>
                             <Typography
                                 variant='caption'
@@ -230,28 +252,8 @@ const About = () => {
                             >
                                 @Sentiago
                             </Button>
-                            <Button
-                                variant='outlined'
-                                size='small'
-                                endIcon={
-                                    <OpenInNewIcon sx={{ fontSize: 16 }} />
-                                }
-                                onClick={async () => {
-                                    await invoke('open_url', {
-                                        url: 'https://itego.pro',
-                                    });
-                                }}
-                                sx={{
-                                    textTransform: 'none',
-                                    fontWeight: 600,
-                                    flex: 1,
-                                }}
-                            >
-                                itego.pro
-                            </Button>
                         </Stack>
                     </Box>
-
                     <Divider sx={{ mb: 3 }} />
 
                     {/* Footer */}

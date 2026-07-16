@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import About from './components/pages/About/About.tsx';
 import SplashScreen from './components/common/SplashScreen.tsx';
+import UpdateBanner from './components/common/UpdateBanner.tsx';
 import { Audit } from './components/pages/Audit/Audit.tsx';
 import { Box } from '@mui/material';
 
@@ -48,6 +49,17 @@ const App: React.FC = () => {
             {currentPage === 'main' && <Main />}
             {currentPage === 'about' && <About />}
             {currentPage === 'audit' && <Audit />}
+            <Box
+                sx={{
+                    position: 'fixed',
+                    bottom: 16,
+                    left: 16,
+                    right: 16,
+                    zIndex: 1000,
+                }}
+            >
+                <UpdateBanner autoCheck={true} compact={false} />
+            </Box>
         </Box>
     );
 };
