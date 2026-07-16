@@ -1,0 +1,32 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="driveBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#4285F4"/>
+<stop offset="100%" stop-color="#1a56c4"/>
+</linearGradient>
+<linearGradient id="driveGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#34A853"/>
+<stop offset="100%" stop-color="#1e7e39"/>
+</linearGradient>
+<linearGradient id="driveYellow" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#FBBC05"/>
+<stop offset="100%" stop-color="#e0a500"/>
+</linearGradient>
+</defs>
+
+<rect x="0" y="0" width="1024" height="1024" rx="180" fill="#0f1a2e"/>
+
+<g transform="translate(512,470)">
+<polygon points="-224,-288 224,-288 416,48 -416,48" fill="url(#driveBlue)"/>
+<polygon points="-416,48 0,48 -208,416 -416,48" fill="url(#driveGreen)"/>
+<polygon points="416,48 0,48 208,416 416,48" fill="url(#driveYellow)"/>
+</g>
+
+<g transform="translate(704,760)">
+<circle r="150" fill="#ffffff"/>
+<circle r="150" fill="none" stroke="#0f1a2e" stroke-width="16"/>
+<circle cx="-16" cy="-16" r="68" fill="none" stroke="#0f1a2e" stroke-width="24"/>
+<line x1="36" y1="36" x2="90" y2="90" stroke="#0f1a2e" stroke-width="26" stroke-linecap="round"/>
+<path d="M-46,-20 L-16,10 L36,-52" fill="none" stroke="#34A853" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>
