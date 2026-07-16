@@ -3,6 +3,7 @@
 mod app_handle_storage;
 mod drive;
 mod oauth;
+mod updater;
 use app_handle_storage::{init_app_handle, init_main_window};
 use tauri::Manager;
 
@@ -46,6 +47,10 @@ fn main() {
             drive::folder_cache::get_folder_info,
             drive::folder_cache::remove_saved_folder,
             drive::folder_cache::clear_folder_history,
+            updater::check_for_updates,
+            updater::download_update,
+            updater::is_update_downloaded,
+            updater::get_downloads_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
