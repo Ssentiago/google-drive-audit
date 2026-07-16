@@ -1,72 +1,81 @@
 name: Release
 on:
   push:
-    tags:
-      - '*'
-
+    tags: [ "*" ]
+permissions:
+  contents: write
 jobs:
-  release:
-    permissions:
-      contents: write
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      body: ${{ steps.body.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build release body
+        id: body
+        run: |
+          TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -n1)
+          CHANGELOG=$(awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -n "$PREV_TAG" ]; then
+            URL="https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+            BODY="${CHANGELOG}"$'\n\n'"Full changelog: ${URL}"
+          else
+            BODY="${CHANGELOG}"
+          fi
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Create draft release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          body: ${{ steps.body.outputs.body }}
+          draft: true
+  build:
+    needs: create-release
     strategy:
-      fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-          - platform: 'windows-latest'
-            args: ''
-          - platform: 'ubuntu-22.04'
-            args: '--bundles appimage'
-
-    runs-on: ${{ matrix.platform }}
-
+          - os: macos-latest
+            target: universal-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Token check
-        shell: bash
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $TOKEN" https://api.github.com/user)
-          if [ "$STATUS" -ne 200 ]; then
-            echo "Bad token"
-            exit 1
-          fi
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
-
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev \
-            patchelf
-
-      - name: Rust setup
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Disable Windows Defender
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: bun install
       - uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
-          releaseBody: 'Release'
+          releaseName: "Release ${{ github.ref_name }}"
+          releaseBody: ${{ needs.create-release.outputs.body }}
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: --target ${{ matrix.target }}
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: false
